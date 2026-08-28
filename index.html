@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Polyarena</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="tb-left">
+        <span id="logo">POLY<em>ARENA</em></span>
+        <span id="matchBanner"></span>
+      </div>
+      <div class="tb-right">
+        <span id="strikeInfo"></span>
+        <button id="rebuyBtn" hidden>REBUY</button>
+        <span id="bankChip">💰 <b id="bankroll">$1,000</b></span>
+        <button id="installBtn" hidden title="Install app">⬇</button>
+        <button id="soundBtn" title="Sound">🔊</button>
+      </div>
+    </header>
+
+    <main id="stage">
+      <canvas id="arenaCanvas"></canvas>
+
+      <!-- in-fight HUD -->
+      <div id="fightHud" class="hidden">
+        <div id="hpA" class="hp-wrap">
+          <div class="hp-name"></div>
+          <div class="hp-bar"><div class="hp-fill"></div></div>
+        </div>
+        <div id="clockWrap">
+          <div id="roundLabel">RD 1</div>
+          <div id="clock">3:00</div>
+        </div>
+        <div id="hpB" class="hp-wrap">
+          <div class="hp-name"></div>
+          <div class="hp-bar"><div class="hp-fill"></div></div>
+        </div>
+      </div>
+
+      <!-- live prop huddles -->
+      <div id="huddleL" class="huddle"></div>
+      <div id="huddleR" class="huddle"></div>
+
+      <!-- tale of the tape -->
+      <div id="tape"></div>
+
+      <!-- big center announcements -->
+      <div id="announce"></div>
+
+      <!-- betting table -->
+      <div id="table"></div>
+
+      <!-- betting timer + skip -->
+      <div id="betControls">
+        <div id="betTimer"><div class="bt-fill"></div><div class="bt-label"></div></div>
+        <button id="skipBtn">START FIGHT ▶</button>
+      </div>
+
+      <!-- chip tray -->
+      <div id="chipTray"></div>
+
+      <!-- bet slip -->
+      <aside id="betslip">
+        <button id="slipToggle">MY BETS <span id="slipCount" class="pill">0</span></button>
+        <div id="slipList"></div>
+      </aside>
+
+      <!-- toasts -->
+      <div id="toasts"></div>
+
+      <!-- result overlay -->
+      <div id="resultOverlay"></div>
+    </main>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
