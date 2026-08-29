@@ -280,6 +280,7 @@ function startCountdown() {
     } else {
       hud.announce('FIGHT!', 'red big', 1100);
       sfx.bell();
+      arena.fighter(0).faceCam = arena.fighter(1).faceCam = false;
       startRound(1);
     }
   };
@@ -550,7 +551,9 @@ function loop(ts) {
       const e = 1 - Math.pow(1 - k, 2);
       arena.fighter(0).x = lerp(-1.5, -0.45, e);
       arena.fighter(1).x = lerp(1.5, 0.45, e);
-      if (k >= 1) { arena.fighter(0).anim = arena.fighter(1).anim = 'idle'; }
+      if (k >= 1) {
+        for (const f of [arena.fighter(0), arena.fighter(1)]) { f.anim = 'idle'; f.faceCam = true; }
+      }
       break;
     }
     case 'ROUND': {

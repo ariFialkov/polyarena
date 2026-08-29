@@ -7,6 +7,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { clamp, lerp, rand, randRange } from './util.js';
 import { buildStage, skyTexture } from './stages.js';
+import { buildCharacterRig } from './charrig.js';
 import { sfx } from './audio.js';
 
 const RING_X = 2.6;   // logical x=1 -> world 2.6
@@ -266,7 +267,7 @@ export class Arena {
   fatality(winnerIdx) {
     const w = this.fighters[winnerIdx], l = this.fighters[1 - winnerIdx];
     this.redFlash = 1;
-    w.anim = 'win'; w.animT = 0;
+    w.anim = 'win'; w.animT = 0; w.faceCam = true;
     l.anim = 'launched'; l.animT = 0;
     const p = l.hips.getWorldPosition(new THREE.Vector3());
     this.particles.burst(p, 60, { color: 0xff2840, speed: 4, life: 1.6, size: 0.12, gravity: 2, rise: 2.5 });
@@ -275,7 +276,7 @@ export class Arena {
 
   celebrate(winnerIdx) {
     const w = this.fighters[winnerIdx];
-    if (w) { w.anim = 'win'; w.animT = 0; }
+    if (w) { w.anim = 'win'; w.animT = 0; w.faceCam = true; }
   }
 
   // ------------------------------ frame update ------------------------------
@@ -400,85 +401,7 @@ class Fighter {
   }
 
   buildRig() {
-    const d = this.def;
-    const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({
-      color, roughness: 0.62, metalness: 0.04, flatShading: true, transparent: true, ...opts,
-    });
-    this.mats = [];
-    const M = (c, o) => { const m = mat(c, o); this.mats.push(m); return m; };
-    const skin = M(d.skin), gi = M(d.trunks), giD = M(shade(d.trunks, -24)),
-      wrap = M(d.accent, { roughness: 0.5 }), hair = M(d.hair, { roughness: 0.8 }),
-      dark = M('#16161e');
-
-    const grp = () => new THREE.Group();
-    const mesh = (geo, m, x, y, z) => {
-      const me = new THREE.Mesh(geo, m);
-      me.position.set(x, y, z);
-      me.castShadow = true;
-      return me;
-    };
-
-    this.root = grp();
-    this.hipsBaseY = 0.87;
-    this.hips = grp(); this.hips.position.y = this.hipsBaseY;
-    this.root.add(this.hips);
-
-    // pants top + sash belt
-    this.hips.add(mesh(new THREE.CylinderGeometry(0.20, 0.23, 0.3, 6), gi, 0, 0.02, 0));
-    this.hips.add(mesh(new THREE.CylinderGeometry(0.215, 0.215, 0.09, 6), wrap, 0, 0.14, 0));
-    // sash tail
-    this.hips.add(mesh(new THREE.BoxGeometry(0.1, 0.3, 0.03), wrap, 0.12, -0.05, -0.19));
-
-    // gi vest torso
-    this.spine = grp(); this.spine.position.y = 0.14; this.hips.add(this.spine);
-    this.spine.add(mesh(new THREE.CylinderGeometry(0.185, 0.165, 0.24, 6), gi, 0, 0.1, 0));
-    this.chest = grp(); this.chest.position.y = 0.24; this.spine.add(this.chest);
-    this.chest.add(mesh(new THREE.CylinderGeometry(0.26, 0.18, 0.4, 6), gi, 0, 0.16, 0));
-    // crossed collar detail
-    this.chest.add(mesh(new THREE.BoxGeometry(0.3, 0.07, 0.04), giD, 0, 0.3, 0.17));
-
-    // head: skin + mask + headband with tails
-    this.neck = grp(); this.neck.position.y = 0.38; this.chest.add(this.neck);
-    this.neck.add(mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 6), skin, 0, 0.03, 0));
-    this.neck.add(mesh(new THREE.IcosahedronGeometry(0.145, 1), skin, 0, 0.17, 0.01));
-    const hairMesh = mesh(new THREE.IcosahedronGeometry(0.15, 1), hair, 0, 0.21, -0.04);
-    hairMesh.scale.set(1.02, 0.75, 1.02);
-    this.neck.add(hairMesh);
-    // mask over the lower face
-    const mask = mesh(new THREE.CylinderGeometry(0.135, 0.12, 0.1, 8), gi, 0, 0.115, 0.025);
-    mask.scale.z = 1.06;
-    this.neck.add(mask);
-    // headband + tails
-    this.neck.add(mesh(new THREE.CylinderGeometry(0.152, 0.152, 0.045, 8), wrap, 0, 0.215, 0));
-    this.neck.add(mesh(new THREE.BoxGeometry(0.045, 0.24, 0.02), wrap, 0.05, 0.09, -0.15));
-    this.neck.add(mesh(new THREE.BoxGeometry(0.045, 0.18, 0.02), wrap, -0.03, 0.11, -0.16));
-    // eyes
-    for (const ex of [-0.055, 0.055]) {
-      this.neck.add(mesh(new THREE.SphereGeometry(0.018, 6, 4), M('#0c0c12'), ex, 0.185, 0.135));
-    }
-
-    // arms: bare shoulders, wrapped forearms, small fists
-    this.arms = {};
-    for (const side of [-1, 1]) {
-      const sh = grp(); sh.position.set(side * 0.28, 0.30, 0); this.chest.add(sh);
-      sh.add(mesh(new THREE.SphereGeometry(0.09, 6, 5), gi, 0, 0, 0));
-      sh.add(mesh(new THREE.CapsuleGeometry(0.072, 0.24, 2, 6), skin, 0, -0.16, 0));
-      const el = grp(); el.position.y = -0.32; sh.add(el);
-      el.add(mesh(new THREE.CapsuleGeometry(0.062, 0.2, 2, 6), wrap, 0, -0.13, 0));
-      el.add(mesh(new THREE.IcosahedronGeometry(0.075, 1), skin, 0, -0.29, 0.01));
-      this.arms[side] = { sh, el };
-    }
-
-    // legs: gi pants, wrapped shins, tabi feet
-    this.legs = {};
-    for (const side of [-1, 1]) {
-      const th = grp(); th.position.set(side * 0.13, -0.06, 0); this.hips.add(th);
-      th.add(mesh(new THREE.CapsuleGeometry(0.1, 0.3, 2, 6), gi, 0, -0.18, 0));
-      const kn = grp(); kn.position.y = -0.42; th.add(kn);
-      kn.add(mesh(new THREE.CapsuleGeometry(0.078, 0.28, 2, 6), wrap, 0, -0.17, 0));
-      kn.add(mesh(new THREE.BoxGeometry(0.12, 0.09, 0.26), dark, 0, -0.4, 0.05));
-      this.legs[side] = { th, kn };
-    }
+    buildCharacterRig(this); // data-driven caricature parts on the shared bone rig
   }
 
   headWorld() {
@@ -508,7 +431,7 @@ class Fighter {
 
     const dir = this.facing;
     this.root.position.set(this.x * RING_X + this.lunge * dir, this.rootY || 0, this.z * RING_Z);
-    const yaw = dir * Math.PI / 2 - dir * 0.22;
+    const yaw = this.faceCam ? 0 : dir * Math.PI / 2 - dir * 0.32;
     this.smYaw += (yaw - this.smYaw) * Math.min(1, dt * 10);
     this.root.rotation.y = this.smYaw + this.yawOffset;
   }

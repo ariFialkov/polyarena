@@ -71,14 +71,22 @@ The whole presentation is Mortal-Kombat flavored: ninjas, specials, themed stage
   petals, snow + pulsing aurora, fireflies, torch flames + embers, twinkling starfield
   with floating crystals, swaying palms and a breathing sunset. Stages are fully
   disposed between matches, so the rotation never leaks memory.
-- **Fighters** are ninja-garbed low-poly humanoids (gi, face mask, headband, sash,
-  arm/shin wraps) on a named bone hierarchy (hips → spine → chest → neck/head,
-  shoulders → elbows, thighs → knees). A procedural pose system drives a martial-arts
-  move set — punches, palm strikes, backfists, elbows, roundhouse/snap/spin kicks,
-  sweeps, blocks, hit reacts — plus the KO uppercut launcher, knockdown, fatality
-  launch and win poses. The choreography layer only talks to named bones and states,
-  so the primitive meshes can be swapped for skinned glTF rigs later without touching
-  fight logic.
+- **Fighters** are a 15-strong roster of pop-culture parody caricatures (Donnie
+  "The Don" Thump, Zoltan "Ibra" Kadabra, Duane "The Boulder" Rockson, Simone "Twist"
+  Skyles, Hillary "Madam" Quinton, Sai "Oppa" Park, CiCi "Frost" Spice, Gene "The
+  Demon" Summons, Napoleon "Le Petit" Blownapart, Joe "Tiger King" Chaotic, Gordon
+  "Chef" Slamsey, Wolfgang "Amadeus" Beatdown, Nikola "AC" Teslash, Melon
+  "Technoking" Tusk, and Odysseus "Nobody" of Ithaca). Each is built by a data-driven
+  character rig (`js/charrig.js`): a `look` spec controls stature/bulk/belly/shoulder
+  build, skin and hair, hairstyles (combover, bob, bun, ponytail, mullet, afro,
+  powdered wig...), noses, brows, facial hair, face paint, and full outfits — suits
+  with lapels and ties, chef whites, bronze hoplite armor with cape and pteruges,
+  military coats with epaulettes and a bicorne, leotards, jerseys with numbers, band
+  regalia with studs and shoulder spikes. All of it hangs on the same named bone
+  hierarchy (hips → spine → chest → neck/head, shoulders → elbows, thighs → knees)
+  the animator drives, so every move works on every body and skinned glTF rigs can
+  replace the parts later without touching fight logic. Fighters turn to face the
+  camera for the tale-of-the-tape and victory poses.
 - **Specials**: every fighter has a signature special the choreographer splices into
   their strike timeline (a special *is* one of the drawn landed strikes, so betting
   totals stay exact): fireball projectiles in the fighter's color (glowing orb, point
@@ -113,7 +121,8 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 |---|---|
 | `js/engine.js` | Generative fight model, Monte-Carlo odds, markets, live pricing, cash-out |
 | `js/sim.js` | Outcome → choreography timeline + HP script |
-| `js/render3d.js` | 3D renderer (Three.js), ninja fighter rigs, specials VFX, camera, particles |
+| `js/render3d.js` | 3D renderer (Three.js), fight animation, specials VFX, camera, particles |
+| `js/charrig.js` | Data-driven caricature character builder (looks → meshes on the shared bone rig) |
 | `js/stages.js` | 7 themed stage builders + ambient particle systems |
 | `js/table.js` | Craps-style betting table, chips, chip tray |
 | `js/hud.js` | HP/clock HUD, live-prop huddles, bet slip, toasts, announcements |
