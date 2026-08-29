@@ -1,8 +1,10 @@
 # Polyarena
 
+**▶ Play it: https://arifialkov.github.io/polyarena/**
+
 A 2.5D betting fight-simulator PWA. Bots and (eventually) other players gather around a
 digital craps-style table, put chips on a rotating card of simulated fights, then watch
-the bout play out in a canvas arena — with live in-fight props, cash-outs, KOs and
+the bout play out in a 3D arena — with live in-fight props, cash-outs, KOs and
 the occasional Fatality.
 
 Playable on desktop and mobile, installable as a PWA, zero dependencies and no build step.
@@ -72,6 +74,19 @@ fully offline) with the camera locked front-on and slightly elevated for a 2.5D 
   knockdowns, and screen-flash overlays for big moments.
 - **FX**: pooled additive particle system (impact sparks, KO bursts, fatality soul
   trail + body dissolve).
+
+## Deploying (GitHub Pages)
+
+`.github/workflows/pages.yml` publishes the repo as a static site on every push to the
+default branch (or manually via **Actions → Deploy to GitHub Pages → Run workflow**).
+There is no build step — the workflow copies the files, adds `.nojekyll`, and uploads.
+
+One-time repo setting: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
+All asset paths are relative, so the game runs correctly from the `/polyarena/` subpath
+Pages serves it under. Because it ships a service worker, a hard refresh (or closing the
+installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE` in
+`sw.js` when you want to force all clients to update.
 
 ## Code map
 
