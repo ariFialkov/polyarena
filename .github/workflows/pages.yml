@@ -31,6 +31,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on automatically if it isn't already. Requires the repo
+          # to allow it; if this fails, enable it once by hand under
+          # Settings -> Pages -> Source: GitHub Actions.
+          enablement: true
 
       - name: Stage site files
         run: |
