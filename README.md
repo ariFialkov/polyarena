@@ -81,7 +81,11 @@ fully offline) with the camera locked front-on and slightly elevated for a 2.5D 
 default branch (or manually via **Actions → Deploy to GitHub Pages → Run workflow**).
 There is no build step — the workflow copies the files, adds `.nojekyll`, and uploads.
 
-One-time repo setting: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+**One-time repo setting (required):** Settings → Pages → Build and deployment →
+**Source: GitHub Actions**. The workflow tries to enable Pages itself, but the Actions
+token is not permitted to create a Pages site, so this toggle has to be flipped by hand
+once. After flipping it, re-run the workflow (Actions → Deploy to GitHub Pages →
+Run workflow) or push any commit.
 
 All asset paths are relative, so the game runs correctly from the `/polyarena/` subpath
 Pages serves it under. Because it ships a service worker, a hard refresh (or closing the
