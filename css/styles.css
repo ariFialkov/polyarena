@@ -39,6 +39,14 @@ button { font-family: inherit; cursor: pointer; border: none; }
 /* ------------------------------ stage ------------------------------ */
 #stage { position: relative; flex: 1; overflow: hidden; }
 #arenaCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#stage::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 16;
+  background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0, 0, 5, 0.45) 100%);
+}
+.fx-flash {
+  position: absolute; inset: 0; pointer-events: none; z-index: 15;
+  opacity: 0; transition: opacity 0.05s linear;
+}
 
 /* ------------------------------ fight HUD ------------------------------ */
 #fightHud {
@@ -153,7 +161,7 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .bet-zone:hover, .bet-zone:active { border-color: #ffd75e; background: #ffffff12; }
 .zone-fighter { font-size: 13px; font-weight: 900; letter-spacing: 1px; color: #fff; }
 .zone-label { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #ffffffd9; }
-.zone-odds { font-size: 22px; font-weight: 900; color: #ffd75e; text-shadow: 0 2px 8px #0008; }
+.zone-odds { font-size: 22px; font-weight: 900; color: #ffd75e; text-shadow: 0 2px 8px #0008, 0 0 18px #ffd75e55; }
 .zone-prob { font-size: 10px; color: #ffffff80; }
 
 .zone-win { flex: 1.2; display: flex; flex-direction: column; justify-content: center; min-height: 90px; }
@@ -376,7 +384,7 @@ button { font-family: inherit; cursor: pointer; border: none; }
   .tray-chips { gap: 6px; }
   #tape { flex-direction: row; top: 12%; }
   #toasts { bottom: calc(210px + env(safe-area-inset-bottom)); max-width: 230px; }
-  #betControls { bottom: calc(78px + env(safe-area-inset-bottom)); }
+  #betControls { bottom: calc(136px + env(safe-area-inset-bottom)); }
   #betTimer { width: 150px; }
   .tray-chip { width: 40px; height: 40px; }
 }

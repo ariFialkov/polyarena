@@ -9,7 +9,7 @@ import { $, el, fmtMoney, fmtOdds, fmtClock, clamp, lerp, rand } from './util.js
 import { pickMatchup, record } from './fighters.js';
 import { Match, RTP, ROUND_SECS, NUM_ROUNDS } from './engine.js';
 import { buildScript, buildHpScript } from './sim.js';
-import { Arena } from './render.js';
+import { Arena } from './render3d.js';
 import { Table, buildChipTray } from './table.js';
 import { Hud, shortName } from './hud.js';
 import { makeBots, scheduleTableBets, maybeLiveBet } from './bots.js';
@@ -85,6 +85,7 @@ function boot() {
   });
 
   hud.setBankroll(S.bankroll);
+  window.PA = { arena, state: S }; // debug/console handle
   newMatch();
   requestAnimationFrame(loop);
 }
@@ -516,7 +517,7 @@ function saveBank() {
 // ---------------------------------------------------------------------------
 
 function loop(ts) {
-  const dt = Math.min(0.05, (ts - lastFrame) / 1000 || 0.016);
+  const dt = Math.min(0.1, (ts - lastFrame) / 1000 || 0.016);
   lastFrame = ts;
 
   switch (S.phase) {

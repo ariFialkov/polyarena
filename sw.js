@@ -1,7 +1,7 @@
 // Polyarena service worker: precache the app shell, serve cache-first with
 // background refresh so the game works offline once visited.
 
-const CACHE = 'polyarena-v1';
+const CACHE = 'polyarena-v2';
 const SHELL = [
   '.',
   'index.html',
@@ -12,7 +12,9 @@ const SHELL = [
   'js/fighters.js',
   'js/engine.js',
   'js/sim.js',
-  'js/render.js',
+  'js/render3d.js',
+  'vendor/three.module.min.js',
+  'vendor/three.core.min.js',
   'js/table.js',
   'js/hud.js',
   'js/bots.js',

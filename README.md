@@ -53,13 +53,33 @@ The fight you watch is choreography (`js/sim.js`): the pre-drawn outcome is expa
 into a timeline of strikes, knockdowns and HP targets, so the presentation always lands
 exactly on the drawn result (winner, method, round, time, strike totals).
 
+## The 3D arena (`js/render3d.js`)
+
+The fight scene is true 3D (Three.js, vendored in `vendor/` — still no build step and
+fully offline) with the camera locked front-on and slightly elevated for a 2.5D read.
+
+- **Fighters** are low-poly, flat-shaded humanoids assembled on a named bone hierarchy
+  (hips → spine → chest → neck/head, shoulders → elbows, thighs → knees). A procedural
+  pose system drives them: every anim state (guard, walk, jab/cross/hook/uppercut/
+  roundhouse/knee, hit reacts, block, knockdown, fatality launch, celebration) writes
+  per-joint rotation targets that are smoothed each frame. Because the choreography
+  layer only talks to named bones and states, the primitive meshes can be swapped for
+  skinned glTF rigs later without touching the fight logic.
+- **Arena**: modeled ring (canvas-textured mat and apron, sagging rope tubes, posts,
+  turnbuckles), ~380-instance low-poly crowd on tiered bleachers with idle/hype bob,
+  colored spotlights with volumetric cones, one shadow-casting key light, fog.
+- **Camera**: locked forward with subtle breathing, impact shake, a slow-mo punch-in on
+  knockdowns, and screen-flash overlays for big moments.
+- **FX**: pooled additive particle system (impact sparks, KO bursts, fatality soul
+  trail + body dissolve).
+
 ## Code map
 
 | File | Role |
 |---|---|
 | `js/engine.js` | Generative fight model, Monte-Carlo odds, markets, live pricing, cash-out |
 | `js/sim.js` | Outcome → choreography timeline + HP script |
-| `js/render.js` | 2.5D canvas arena, procedural fighters, particles, KO/fatality FX |
+| `js/render3d.js` | 3D arena (Three.js), bone-rigged low-poly fighters, camera, particles, KO/fatality FX |
 | `js/table.js` | Craps-style betting table, chips, chip tray |
 | `js/hud.js` | HP/clock HUD, live-prop huddles, bet slip, toasts, announcements |
 | `js/bots.js` | Bot bettors (fake multiplayer, swappable for networking later) |
