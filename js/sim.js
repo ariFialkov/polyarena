@@ -7,12 +7,17 @@
 import { rand, randRange, pick, clamp } from './util.js';
 import { ROUND_SECS } from './engine.js';
 
-const STRIKE_TYPES = ['jab', 'cross', 'hook', 'kick', 'knee', 'upper'];
+const STRIKE_TYPES = ['punch', 'palm', 'backfist', 'elbow', 'roundhouse', 'snapkick', 'spinkick', 'sweep'];
+const HEAVY_TYPES = ['backfist', 'roundhouse', 'spinkick', 'palm'];
 
 // Build the full fight script from an engine outcome.
-// Returns { rounds: [ { events:[...], endTime } ], koEvent|null }
-export function buildScript(outcome) {
+// A and B are the fighter defs: their signature specials are spliced into the
+// counted-strike timeline (a special IS one of the landed significant strikes,
+// so totals still match the drawn outcome exactly).
+// Returns { rounds: [ { events:[...], endTime } ], outcome }
+export function buildScript(outcome, A, B) {
   const rounds = [];
+  const defs = [A, B];
 
   for (let r = 1; r <= outcome.endRound; r++) {
     const [sA, sB] = outcome.perRound[r - 1];
@@ -39,16 +44,39 @@ export function buildScript(outcome) {
       const koT = roundLen - 0.01;
       const by = outcome.winner;
       for (let i = 3; i >= 1; i--) {
-        events.push({ t: koT - i * 1.6, type: 'hurt', by, strike: pick(STRIKE_TYPES), counted: false });
+        events.push({ t: koT - i * 1.6, type: 'hurt', by, strike: pick(HEAVY_TYPES), counted: false });
       }
-      events.push({ t: koT, type: 'ko', by, strike: pick(['upper', 'hook', 'kick']) });
+      // MK-style uppercut launcher finish
+      events.push({ t: koT, type: 'ko', by, strike: 'uppercut' });
     }
 
     events.sort((a, b) => a.t - b.t);
+    injectSpecials(events, defs, roundLen, isEndRound);
     rounds.push({ round: r, events, endTime: roundLen, isEndRound });
   }
 
   return { rounds, outcome };
+}
+
+// Upgrade a few counted strikes per round into each fighter's signature
+// special (fireball / teleport / flyingkick / shockwave), spaced apart and
+// kept clear of the KO sequence.
+function injectSpecials(events, defs, roundLen, isEndRound) {
+  for (const by of [0, 1]) {
+    const special = defs && defs[by] && defs[by].special;
+    if (!special) continue;
+    const mine = events.filter(e =>
+      e.type === 'strike' && e.by === by && e.t > 4 && e.t < roundLen - (isEndRound ? 9 : 4));
+    const wanted = Math.min(mine.length, rand() < 0.6 ? 2 : 1);
+    let lastT = -Infinity;
+    for (const ev of mine.sort(() => rand() - 0.5)) {
+      if (Math.abs(ev.t - lastT) < 9) continue;
+      ev.strike = special.kind;
+      ev.specialName = special.name;
+      lastT = ev.t;
+      if (mine.filter(e => e.specialName).length >= wanted) break;
+    }
+  }
 }
 
 function addStrikes(events, by, count, span, tag) {

@@ -59,4 +59,8 @@ export const sfx = {
   lose() { [400, 340, 260].forEach((f, i) => tone(f, 0.4, 'triangle', 0.14, null, i * 0.2)); },
   cash() { [1200, 1600, 2100].forEach((f, i) => tone(f, 0.12, 'square', 0.09, null, i * 0.07)); },
   tick() { tone(1000, 0.07, 'square', 0.08); },
+  whoosh() { noise(0.18, 0.12); tone(300, 0.22, 'sine', 0.08, 900); },
+  fireball() { tone(180, 0.4, 'sawtooth', 0.14, 700); noise(0.3, 0.1, 0.05); },
+  teleport() { tone(1400, 0.25, 'sine', 0.12, 200); tone(200, 0.25, 'sine', 0.1, 1400, 0.22); },
+  slam() { noise(0.35, 0.35); tone(90, 0.45, 'square', 0.25, 40); },
 };

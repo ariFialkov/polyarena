@@ -28,7 +28,9 @@ Serve over HTTPS (or localhost) for the service worker / install prompt to activ
    bettors drop their own chips and show up in the activity feed.
 2. **The table swings open** and the arena is revealed: fighter entrances, tale of the
    tape, countdown, bell.
-3. **The fight** — up to 3 rounds of 3:00 game-time at 3× speed (≤ 3 real minutes).
+3. **The fight** — on a randomly rotated themed stage, up to 3 rounds of 3:00
+   game-time at 3× speed (≤ 3 real minutes), with each fighter's signature special
+   woven into the action.
    Live prop huddles flank the arena and re-price every ~1.6s; the collapsible bet slip
    offers cash-out on every open ticket. Bots keep firing live bets to keep the rail noisy.
 4. **Result** — KO / decision / fatality sequence, bets settle, bankroll updates,
@@ -55,25 +57,38 @@ The fight you watch is choreography (`js/sim.js`): the pre-drawn outcome is expa
 into a timeline of strikes, knockdowns and HP targets, so the presentation always lands
 exactly on the drawn result (winner, method, round, time, strike totals).
 
-## The 3D arena (`js/render3d.js`)
+## The 3D arena (`js/render3d.js` + `js/stages.js`)
 
 The fight scene is true 3D (Three.js, vendored in `vendor/` — still no build step and
 fully offline) with the camera locked front-on and slightly elevated for a 2.5D read.
+The whole presentation is Mortal-Kombat flavored: ninjas, specials, themed stages.
 
-- **Fighters** are low-poly, flat-shaded humanoids assembled on a named bone hierarchy
-  (hips → spine → chest → neck/head, shoulders → elbows, thighs → knees). A procedural
-  pose system drives them: every anim state (guard, walk, jab/cross/hook/uppercut/
-  roundhouse/knee, hit reacts, block, knockdown, fatality launch, celebration) writes
-  per-joint rotation targets that are smoothed each frame. Because the choreography
-  layer only talks to named bones and states, the primitive meshes can be swapped for
-  skinned glTF rigs later without touching the fight logic.
-- **Arena**: modeled ring (canvas-textured mat and apron, sagging rope tubes, posts,
-  turnbuckles), ~380-instance low-poly crowd on tiered bleachers with idle/hype bob,
-  colored spotlights with volumetric cones, one shadow-casting key light, fog.
+- **Stages**: every match is fought on one of 7 themed 2.5D platform arenas, rotated
+  so no stage repeats until all have been seen — Jungle Temple, Blood Keep (castle),
+  Orbital Kolosseum (space), The White House, Siberian Summit, Sakura Garden, and
+  Sunset Shores (beach). Each stage sets its own sky gradient, fog, and light tints and
+  builds its own low-poly scenery, with a live ambient system per theme: falling cherry
+  petals, snow + pulsing aurora, fireflies, torch flames + embers, twinkling starfield
+  with floating crystals, swaying palms and a breathing sunset. Stages are fully
+  disposed between matches, so the rotation never leaks memory.
+- **Fighters** are ninja-garbed low-poly humanoids (gi, face mask, headband, sash,
+  arm/shin wraps) on a named bone hierarchy (hips → spine → chest → neck/head,
+  shoulders → elbows, thighs → knees). A procedural pose system drives a martial-arts
+  move set — punches, palm strikes, backfists, elbows, roundhouse/snap/spin kicks,
+  sweeps, blocks, hit reacts — plus the KO uppercut launcher, knockdown, fatality
+  launch and win poses. The choreography layer only talks to named bones and states,
+  so the primitive meshes can be swapped for skinned glTF rigs later without touching
+  fight logic.
+- **Specials**: every fighter has a signature special the choreographer splices into
+  their strike timeline (a special *is* one of the drawn landed strikes, so betting
+  totals stay exact): fireball projectiles in the fighter's color (glowing orb, point
+  light, trail, impact burst), teleport strikes (vanish → reappear behind the opponent
+  → backfist), flying kicks, and ground-slam shockwaves with expanding ring VFX. Each
+  has its own synth SFX and a call-out toast naming the move.
 - **Camera**: locked forward with subtle breathing, impact shake, a slow-mo punch-in on
   knockdowns, and screen-flash overlays for big moments.
-- **FX**: pooled additive particle system (impact sparks, KO bursts, fatality soul
-  trail + body dissolve).
+- **FX**: pooled additive particle system (impact sparks, KO bursts, shockwave rings,
+  projectile trails, teleport bursts, fatality soul trail + body dissolve).
 
 ## Deploying (GitHub Pages)
 
@@ -98,7 +113,8 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 |---|---|
 | `js/engine.js` | Generative fight model, Monte-Carlo odds, markets, live pricing, cash-out |
 | `js/sim.js` | Outcome → choreography timeline + HP script |
-| `js/render3d.js` | 3D arena (Three.js), bone-rigged low-poly fighters, camera, particles, KO/fatality FX |
+| `js/render3d.js` | 3D renderer (Three.js), ninja fighter rigs, specials VFX, camera, particles |
+| `js/stages.js` | 7 themed stage builders + ambient particle systems |
 | `js/table.js` | Craps-style betting table, chips, chip tray |
 | `js/hud.js` | HP/clock HUD, live-prop huddles, bet slip, toasts, announcements |
 | `js/bots.js` | Bot bettors (fake multiplayer, swappable for networking later) |

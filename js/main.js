@@ -9,7 +9,8 @@ import { $, el, fmtMoney, fmtOdds, fmtClock, clamp, lerp, rand } from './util.js
 import { pickMatchup, record } from './fighters.js';
 import { Match, RTP, ROUND_SECS, NUM_ROUNDS } from './engine.js';
 import { buildScript, buildHpScript } from './sim.js';
-import { Arena } from './render3d.js';
+import { Arena, SPECIALS } from './render3d.js';
+import { pickStage } from './stages.js';
 import { Table, buildChipTray } from './table.js';
 import { Hud, shortName } from './hud.js';
 import { makeBots, scheduleTableBets, maybeLiveBet } from './bots.js';
@@ -96,6 +97,7 @@ function boot() {
 
 function newMatch() {
   const [A, B] = pickMatchup();
+  S.stage = pickStage();
   S.match = new Match(A, B);
   S.bets = [];
   S.liveValues = new Map();
@@ -103,6 +105,7 @@ function newMatch() {
   S.round = 0;
   S.gameTime = 0;
 
+  arena.setStage(S.stage);
   arena.setFighters(A, B);
   hud.setMatch(S.match);
   hud.clearHuddles();
@@ -111,7 +114,7 @@ function newMatch() {
   table.setLocked(false);
 
   $('#resultOverlay').classList.remove('show');
-  $('#matchBanner').textContent = `${shortName(A).toUpperCase()}  vs  ${shortName(B).toUpperCase()}`;
+  $('#matchBanner').textContent = `${shortName(A).toUpperCase()} vs ${shortName(B).toUpperCase()} · ${S.stage.label}`;
   $('#strikeInfo').textContent = `O/U ${S.match.strikeLine} strikes`;
   $('#table').classList.remove('open');
   $('#table').hidden = false;
@@ -133,6 +136,7 @@ function newMatch() {
   });
 
   hud.announce('PLACE YOUR BETS', 'gold', 2000);
+  hud.toast(`Tonight's stage: <b>${S.stage.label}</b>`, 'sys-toast');
 }
 
 function marketDisplay(m) {
@@ -233,7 +237,9 @@ function startIntro() {
 
   const tape = $('#tape');
   tape.innerHTML = '';
-  tape.append(tapeCard(S.match.A, 'A'), el('div', 'tape-vs', 'VS'), tapeCard(S.match.B, 'B'));
+  const mid = el('div', 'tape-mid');
+  mid.append(el('div', 'tape-vs', 'VS'), el('div', 'tape-stage', S.stage.label));
+  tape.append(tapeCard(S.match.A, 'A'), mid, tapeCard(S.match.B, 'B'));
   tape.classList.add('show');
 
   hud.announce(shortName(S.match.A).toUpperCase(), 'gold', 1700);
@@ -248,6 +254,7 @@ function tapeCard(f, side) {
   const c = el('div', 'tape-card side-' + side);
   c.append(el('div', 'tape-name', f.name));
   c.append(el('div', 'tape-sub', `${f.style} · ${record(f)}`));
+  c.append(el('div', 'tape-special', '\u2726 ' + f.special.name));
   for (const [k, label] of [['power', 'PWR'], ['speed', 'SPD'], ['chin', 'CHIN'], ['defense', 'DEF']]) {
     const row = el('div', 'tape-stat');
     row.append(el('span', 'ts-label', label));
@@ -285,7 +292,7 @@ function startCountdown() {
 
 function startRound(r) {
   if (r === 1) {
-    S.script = buildScript(S.match.outcome);
+    S.script = buildScript(S.match.outcome, S.match.A, S.match.B);
     S.hp = buildHpScript(S.match.outcome);
   }
   S.phase = 'ROUND';
@@ -312,7 +319,15 @@ function processRoundEvents() {
     switch (ev.type) {
       case 'strike':
         arena.strike(ev.by, ev.strike, true);
-        sfx.hit();
+        if (SPECIALS.includes(ev.strike)) {
+          // launch/impact audio handled by the arena; call out the move
+          if (ev.specialName) {
+            const f = ev.by === 0 ? S.match.A : S.match.B;
+            hud.toast(`<b>${shortName(f)}</b> unleashes <b>${ev.specialName}</b>!`, 'special-toast');
+          }
+        } else {
+          sfx.hit();
+        }
         S.strikes++;
         $('#strikeInfo').textContent = `STRIKES ${S.strikes} · O/U ${S.match.strikeLine}`;
         break;
