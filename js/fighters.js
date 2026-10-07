@@ -45,7 +45,7 @@ export const FIGHTERS = [
       h: 0.86, bulk: 0.92 },
   },
   {
-    id: 'quinton', name: 'Hillary "Madam" Quinton', origin: 'Chappaqua', style: 'Filibuster-Fu',
+    id: 'quinton', model: 'madam', name: 'Hillary "Madam" Quinton', origin: 'Chappaqua', style: 'Filibuster-Fu',
     special: { kind: 'teleport', name: 'Redacted Rush' },
     skin: '#f0cdb2', trunks: '#2a5a9c', accent: '#7ab8ff', hair: '#e8d28a',
     power: 54, speed: 56, defense: 90, chin: 76, stamina: 72, aggression: 52, flair: 45,
@@ -54,7 +54,7 @@ export const FIGHTERS = [
       extras: ['pearls'], h: 0.98 },
   },
   {
-    id: 'sai', name: 'Sai "Oppa" Park', origin: 'Gangnam District', style: 'Invisible-Horse Style',
+    id: 'sai', model: 'oppa', name: 'Sai "Oppa" Park', origin: 'Gangnam District', style: 'Invisible-Horse Style',
     special: { kind: 'shockwave', name: 'Pony Stomp' },
     skin: '#eac094', trunks: '#14161c', accent: '#40c8ff', hair: '#14100e',
     power: 64, speed: 76, defense: 58, chin: 66, stamina: 84, aggression: 70, flair: 80,
@@ -81,7 +81,7 @@ export const FIGHTERS = [
       extras: ['tongue'], h: 1.06, bulk: 1.05 },
   },
   {
-    id: 'blownapart', name: 'Napoleon "Le Petit" Blownapart', origin: 'Corsica', style: 'Grande Armée Fisticuffs',
+    id: 'blownapart', model: 'le_petit', name: 'Napoleon "Le Petit" Blownapart', origin: 'Corsica', style: 'Grande Armée Fisticuffs',
     special: { kind: 'shockwave', name: 'Cannonade' },
     skin: '#e8c49e', trunks: '#1c2c5e', accent: '#ffcf50', hair: '#2c2018',
     power: 66, speed: 62, defense: 84, chin: 74, stamina: 66, aggression: 90, flair: 55,
@@ -117,7 +117,7 @@ export const FIGHTERS = [
       extras: ['cravat'], h: 0.96 },
   },
   {
-    id: 'teslash', name: 'Nikola "AC" Teslash', origin: 'Smiljan', style: 'Alternating Current Arts',
+    id: 'teslash', model: 'ac', name: 'Nikola "AC" Teslash', origin: 'Smiljan', style: 'Alternating Current Arts',
     special: { kind: 'fireball', name: 'Coil Discharge' },
     skin: '#e6c8ae', trunks: '#23252e', accent: '#70e8ff', hair: '#17130f',
     power: 72, speed: 72, defense: 66, chin: 56, stamina: 74, aggression: 56, flair: 76,
@@ -126,7 +126,7 @@ export const FIGHTERS = [
       h: 1.1, bulk: 0.85 },
   },
   {
-    id: 'tusk', name: 'Melon "Technoking" Tusk', origin: 'Boca Chica', style: 'Meme-Jitsu',
+    id: 'tusk', model: 'technoking', name: 'Melon "Technoking" Tusk', origin: 'Boca Chica', style: 'Meme-Jitsu',
     special: { kind: 'fireball', name: 'Mars Shot' },
     skin: '#ecc4a4', trunks: '#17181e', accent: '#ff5030', hair: '#4a3524',
     power: 60, speed: 62, defense: 60, chin: 64, stamina: 86, aggression: 74, flair: 80,
