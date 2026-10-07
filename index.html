@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0d16">
+  <meta name="theme-color" content="#06030d">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,42 +11,53 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preload" href="fonts/bungee.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/teko.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/styles.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
 <body>
   <div id="app">
     <header id="topbar">
       <div class="tb-left">
-        <span id="logo">POLY<em>ARENA</em></span>
-        <span id="matchBanner"></span>
+        <div id="logo">POLY<span>ARENA</span></div>
+        <div id="matchBanner"></div>
       </div>
+      <div id="rail"></div>
       <div class="tb-right">
-        <span id="strikeInfo"></span>
         <button id="rebuyBtn" hidden>REBUY</button>
-        <span id="bankChip">💰 <b id="bankroll">$1,000</b></span>
-        <button id="installBtn" hidden title="Install app">⬇</button>
-        <button id="soundBtn" title="Sound">🔊</button>
+        <div id="bankChip"><span class="coin"></span><b id="bankroll">$1,000</b></div>
+        <button id="installBtn" class="icon-btn" hidden title="Install app">⬇</button>
+        <button id="soundBtn" class="icon-btn" title="Sound">🔊</button>
       </div>
     </header>
 
     <main id="stage">
       <canvas id="arenaCanvas"></canvas>
+      <div id="lobbyShade"></div>
 
       <!-- in-fight HUD -->
       <div id="fightHud" class="hidden">
-        <div id="hpA" class="hp-wrap">
+        <div id="hpA" class="hpbox side-A">
           <div class="hp-name"></div>
-          <div class="hp-bar"><div class="hp-fill"></div></div>
+          <div class="hp-bar"><div class="hp-trail"></div><div class="hp-fill"></div><div class="hp-shine"></div></div>
+          <div class="hp-sub"></div>
         </div>
-        <div id="clockWrap">
-          <div id="roundLabel">RD 1</div>
-          <div id="clock">3:00</div>
+        <div id="timerBox">
+          <div id="roundLabel">ROUND 1</div>
+          <div id="clock">30</div>
+          <div id="roundPips"><i></i><i></i><i></i></div>
         </div>
-        <div id="hpB" class="hp-wrap">
+        <div id="hpB" class="hpbox side-B">
           <div class="hp-name"></div>
-          <div class="hp-bar"><div class="hp-fill"></div></div>
+          <div class="hp-bar"><div class="hp-trail"></div><div class="hp-fill"></div><div class="hp-shine"></div></div>
+          <div class="hp-sub"></div>
         </div>
       </div>
+      <div id="strikeMeter" class="hidden"></div>
+      <div id="comboA" class="combo side-A"></div>
+      <div id="comboB" class="combo side-B"></div>
+      <div id="specialBanner"></div>
 
       <!-- live prop huddles -->
       <div id="huddleL" class="huddle"></div>
@@ -61,10 +72,19 @@
       <!-- betting table -->
       <div id="table"></div>
 
-      <!-- betting timer + skip -->
-      <div id="betControls">
-        <div id="betTimer"><div class="bt-fill"></div><div class="bt-label"></div></div>
-        <button id="skipBtn">START FIGHT ▶</button>
+      <!-- countdown + fight-now -->
+      <div id="betDock">
+        <div id="countdown">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="cd-track" cx="32" cy="32" r="27"></circle>
+            <circle class="cd-ring" cx="32" cy="32" r="27"></circle>
+          </svg>
+          <div class="cd-num">30</div>
+        </div>
+        <div class="cd-text">
+          <div class="cd-label">BETS CLOSE IN</div>
+          <button id="skipBtn">FIGHT NOW ▶</button>
+        </div>
       </div>
 
       <!-- chip tray -->
@@ -76,10 +96,9 @@
         <div id="slipList"></div>
       </aside>
 
-      <!-- toasts -->
       <div id="toasts"></div>
-
-      <!-- result overlay -->
+      <canvas id="fxCanvas"></canvas>
+      <div id="urgency"></div>
       <div id="resultOverlay"></div>
     </main>
   </div>

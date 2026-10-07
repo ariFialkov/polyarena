@@ -75,7 +75,7 @@ function helpers(g) {
     g.add(me);
     return me;
   };
-  const ground = (color, w = 11, d = 6.6) => {
+  const ground = (color, w = 32, d = 7.2) => {
     const me = add(new THREE.BoxGeometry(w, 0.5, d), mat(color, { roughness: 0.95 }), 0, -0.25, -0.6);
     me.receiveShadow = true;
     // pedestal skirt below the platform edge
@@ -109,26 +109,26 @@ export const STAGES = [
     build(g, h) {
       h.ground(0x4a5a42);
       // mossy stone platform trim
-      h.add(new THREE.BoxGeometry(11.6, 0.22, 7.1), h.mat(0x59695a), 0, -0.48, -0.6);
+      h.add(new THREE.BoxGeometry(32.6, 0.22, 7.7), h.mat(0x59695a), 0, -0.48, -0.6);
       // ruin pillars
-      for (const [x, z, hh] of [[-4.4, -2.6, 2.2], [4.4, -2.6, 1.6], [-3.2, -3.4, 2.8], [3.4, -3.6, 2.4]]) {
+      for (const [x, z, hh] of [[-4.4, -2.6, 2.2], [4.4, -2.6, 1.6], [-3.2, -3.4, 2.8], [3.4, -3.6, 2.4], [-9.5, -2.8, 2.6], [10.2, -3, 2.0], [-13.8, -3.2, 1.7], [14.2, -2.7, 2.9], [-7.4, -3.7, 1.4], [7.8, -3.5, 3.1]]) {
         h.add(new THREE.CylinderGeometry(0.28, 0.34, hh, 6), h.mat(0x6a7a68), x, hh / 2, z);
         h.add(new THREE.BoxGeometry(0.9, 0.25, 0.9), h.mat(0x5a6a58), x, hh + 0.12, z);
       }
       // giant trees + canopy wall
-      for (const [x, z, s] of [[-5.4, -4.2, 1.5], [5.6, -4.5, 1.7], [-2, -5.2, 1.4], [2.4, -5.4, 1.6], [0, -6, 1.8]]) {
+      for (const [x, z, s] of [[-5.4, -4.2, 1.5], [5.6, -4.5, 1.7], [-2, -5.2, 1.4], [2.4, -5.4, 1.6], [0, -6, 1.8], [-9, -5, 1.7], [9.5, -4.8, 1.5], [-12.5, -4.4, 1.9], [12.8, -5.4, 1.8], [-15.5, -5.8, 1.6], [16, -4.6, 1.7], [-6.8, -6.4, 2.0], [7, -6.6, 2.1]]) {
         h.add(new THREE.CylinderGeometry(0.22 * s, 0.34 * s, 1.7 * s, 6), h.mat(0x35261a), x, 0.85 * s, z);
         h.blob(x, 1.9 * s, z, 1.2 * s, 0x1c4426);
         h.blob(x + 0.8, 1.55 * s, z + 0.3, 0.85 * s, 0x235a2e);
         h.blob(x - 0.7, 1.5 * s, z - 0.2, 0.7 * s, 0x184020);
       }
-      for (let i = 0; i < 10; i++) h.blob(randRange(-7, 7), randRange(0.4, 1), randRange(-4.6, -3.4), randRange(0.5, 1), 0x16351f);
+      for (let i = 0; i < 30; i++) h.blob(randRange(-18, 18), randRange(0.4, 1), randRange(-4.6, -3.4), randRange(0.5, 1), 0x16351f);
       // hanging vines
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 20; i++) {
         const len = randRange(0.8, 1.8);
-        h.add(new THREE.CylinderGeometry(0.025, 0.035, len, 4), h.mat(0x2c5a30), randRange(-5, 5), 3.1 - len / 2, randRange(-4, -2.5));
+        h.add(new THREE.CylinderGeometry(0.025, 0.035, len, 4), h.mat(0x2c5a30), randRange(-15, 15), 3.1 - len / 2, randRange(-4, -2.5));
       }
-      const fireflies = new Field(g, { n: 45, box: [7, 3.2, 4], y0: 0.4, color: 0xd8ffa0, size: 0.07, fall: 0.05, drift: 1.2, additive: true, twinkle: 1.6 });
+      const fireflies = new Field(g, { n: 110, box: [17, 3.2, 4], y0: 0.4, color: 0xd8ffa0, size: 0.07, fall: 0.05, drift: 1.2, additive: true, twinkle: 1.6 });
       return { tick: (dt, t) => fireflies.tick(dt, t) };
     },
   },
@@ -138,37 +138,41 @@ export const STAGES = [
     hemi: [0x8878aa, 0x141018, 0.3], key: 0xffd9a8,
     build(g, h) {
       h.ground(0x4c4a55);
-      h.add(new THREE.BoxGeometry(11.6, 0.22, 7.1), h.mat(0x3c3a45), 0, -0.48, -0.6);
+      h.add(new THREE.BoxGeometry(32.6, 0.22, 7.7), h.mat(0x3c3a45), 0, -0.48, -0.6);
       // keep wall with crenellations
-      const wall = h.add(new THREE.BoxGeometry(13, 3.4, 1), h.mat(0x55515e), 0, 1.7, -4.4);
+      const wall = h.add(new THREE.BoxGeometry(36, 3.4, 1), h.mat(0x55515e), 0, 1.7, -4.4);
       wall.receiveShadow = true;
-      for (let i = -6; i <= 6; i++) h.add(new THREE.BoxGeometry(0.55, 0.5, 1), h.mat(0x4c4855), i, 3.6, -4.4);
+      for (let i = -17; i <= 17; i++) h.add(new THREE.BoxGeometry(0.55, 0.5, 1), h.mat(0x4c4855), i, 3.6, -4.4);
       // towers
-      for (const x of [-5.5, 5.5]) {
+      for (const x of [-14, -5.5, 5.5, 14]) {
         h.add(new THREE.CylinderGeometry(1, 1.15, 5.2, 8), h.mat(0x5a5665), x, 2.6, -4.6);
         h.add(new THREE.ConeGeometry(1.25, 1.6, 8), h.mat(0x35202a), x, 6, -4.6);
       }
       // banners
-      for (const x of [-2.6, 2.6]) h.add(new THREE.BoxGeometry(0.7, 1.7, 0.05), h.mat(0x8c1024), x, 2.2, -3.88);
+      for (const x of [-10, -2.6, 2.6, 10]) h.add(new THREE.BoxGeometry(0.7, 1.7, 0.05), h.mat(0x8c1024), x, 2.2, -3.88);
       // torches with flames
       const flames = [];
-      for (const x of [-4, -1.3, 1.3, 4]) {
+      for (const x of [-16, -12, -7.5, -4, -1.3, 1.3, 4, 7.5, 12, 16]) {
         h.add(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 5), h.mat(0x2a2018), x, 1.9, -3.85);
         const fl = h.add(new THREE.ConeGeometry(0.13, 0.4, 6), h.basic(0xff9030, { transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending }), x, 2.45, -3.85);
-        const li = new THREE.PointLight(0xff8030, 6, 6, 1.8);
-        li.position.set(x, 2.5, -3.6);
-        g.add(li);
+        // real lights only on a few torches (each one costs every lit material)
+        let li = null;
+        if ([-7.5, -1.3, 1.3, 7.5].includes(x)) {
+          li = new THREE.PointLight(0xff8030, 6, 7, 1.8);
+          li.position.set(x, 2.5, -3.6);
+          g.add(li);
+        }
         flames.push({ fl, li, p: rand() * 9 });
       }
       // moon
-      h.add(new THREE.SphereGeometry(0.9, 10, 8), h.basic(0xf0e8d0, { fog: false }), 6.5, 7.5, -9);
-      const embers = new Field(g, { n: 40, box: [6, 3.5, 3], y0: 1.6, color: 0xff9040, size: 0.05, fall: -0.35, drift: 0.4, additive: true, opacity: 0.7 });
+      h.add(new THREE.SphereGeometry(1.3, 12, 10), h.basic(0xf0e8d0, { fog: false }), 9, 9, -16);
+      const embers = new Field(g, { n: 90, box: [16, 3.5, 3], y0: 1.6, color: 0xff9040, size: 0.05, fall: -0.35, drift: 0.4, additive: true, opacity: 0.7 });
       return {
         tick(dt, t) {
           embers.tick(dt, t);
           for (const f of flames) {
             const k = 0.75 + 0.25 * Math.sin(t * 11 + f.p) * Math.sin(t * 7 + f.p * 2);
-            f.li.intensity = 6 * k;
+            if (f.li) f.li.intensity = 6 * k;
             f.fl.scale.set(k, 0.8 + 0.35 * k, k);
           }
         },
@@ -181,25 +185,29 @@ export const STAGES = [
     hemi: [0x8090ff, 0x0a0a18, 0.4], key: 0xcfe0ff,
     build(g, h) {
       // floating hex platform
-      const plat = h.add(new THREE.CylinderGeometry(5.8, 5.0, 0.6, 6), h.mat(0x2a2f52, { metalness: 0.35, roughness: 0.5 }), 0, -0.3, 0);
+      const plat = h.add(new THREE.CylinderGeometry(5.8, 5.0, 0.6, 6), h.mat(0x2a2f52, { metalness: 0.35, roughness: 0.5 }), 0, -0.3, -0.4);
+      plat.scale.set(2.9, 1, 1.15);
       plat.receiveShadow = true;
-      h.add(new THREE.CylinderGeometry(5.85, 5.85, 0.1, 6), h.basic(0x40d8ff, { transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }), 0, 0.02, 0);
-      h.add(new THREE.CylinderGeometry(1.6, 0.2, 2.6, 6), h.mat(0x1c2040), 0, -1.9, 0);
+      const rim = h.add(new THREE.CylinderGeometry(5.85, 5.85, 0.1, 6), h.basic(0x40d8ff, { transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }), 0, 0.02, -0.4);
+      rim.scale.set(2.9, 1, 1.15);
+      for (const x of [-9, 0, 9]) h.add(new THREE.CylinderGeometry(1.6, 0.2, 2.6, 6), h.mat(0x1c2040), x, -1.9, 0);
+      // light strips across the deck
+      for (let x = -15; x <= 15; x += 2.5) h.add(new THREE.BoxGeometry(0.08, 0.02, 4.5), h.basic(0x2a6aff, { transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending }), x, 0.01, -0.6);
       // ringed planet
-      const planet = h.add(new THREE.SphereGeometry(2.2, 12, 10), h.mat(0x8c5a9c, { roughness: 0.7 }), -7, 6, -14);
-      const ring = h.add(new THREE.TorusGeometry(3.2, 0.35, 2, 28), h.mat(0xc0a8e0), -7, 6, -14);
+      const planet = h.add(new THREE.SphereGeometry(3.2, 16, 12), h.mat(0x8c5a9c, { roughness: 0.7 }), -10, 8, -22);
+      const ring = h.add(new THREE.TorusGeometry(4.6, 0.5, 2, 32), h.mat(0xc0a8e0), -10, 8, -22);
       ring.rotation.x = 1.9; ring.scale.z = 0.15;
       planet.material.fog = false; ring.material.fog = false;
       // floating crystals
       const crystals = [];
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 16; i++) {
         const c = h.add(new THREE.OctahedronGeometry(randRange(0.2, 0.5), 0),
           h.basic(0x70e8ff, { transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending }),
-          randRange(-6, 6), randRange(1, 4.5), randRange(-5, -2.5));
+          randRange(-17, 17), randRange(1, 4.5), randRange(-6, -3));
         c.scale.y = 1.8;
         crystals.push({ c, p: rand() * 9, y: c.position.y });
       }
-      const stars = new Field(g, { n: 240, box: [16, 12, 14], y0: 0, color: 0xffffff, size: 0.06, fall: 0, drift: 0.02, additive: true, twinkle: 0.8 });
+      const stars = new Field(g, { n: 420, box: [30, 14, 18], y0: 0, color: 0xffffff, size: 0.06, fall: 0, drift: 0.02, additive: true, twinkle: 0.8 });
       return {
         tick(dt, t) {
           stars.tick(dt, t);
@@ -217,7 +225,7 @@ export const STAGES = [
     hemi: [0xaab0e0, 0x1c2030, 0.55], key: 0xfff0d8,
     build(g, h) {
       h.ground(0x3e5a34); // lawn
-      h.add(new THREE.BoxGeometry(12, 0.18, 2.4), h.mat(0x8a8a92), 0, -0.4, 2.6); // front path edge
+      h.add(new THREE.BoxGeometry(34, 0.18, 2.4), h.mat(0x8a8a92), 0, -0.4, 2.6); // front path edge
       // facade
       const fw = 11;
       const fac = h.add(new THREE.BoxGeometry(fw, 3.2, 1.2), h.mat(0xe8e6e0, { roughness: 0.7 }), 0, 1.6, -4.4);
@@ -239,12 +247,30 @@ export const STAGES = [
       h.add(new THREE.BoxGeometry(fw, 0.28, 1.2), h.mat(0xd8d6d0), 0, 3.35, -4.4);
       h.add(new THREE.CylinderGeometry(0.03, 0.03, 1.7, 4), h.mat(0xcccccc), 0, 4.6, -4.4);
       const flag = h.add(new THREE.BoxGeometry(0.85, 0.5, 0.03), h.mat(0xb3202a), 0.46, 5.15, -4.4);
-      // fountain
-      h.add(new THREE.CylinderGeometry(0.9, 1, 0.35, 8), h.mat(0x9a98a0), -4.2, 0.17, 1.9);
-      h.add(new THREE.CylinderGeometry(0.75, 0.75, 0.1, 8), h.basic(0x5a9cd8), -4.2, 0.32, 1.9);
-      // hedges
-      for (const x of [-2.8, 2.8]) h.add(new THREE.BoxGeometry(1.6, 0.5, 0.6), h.mat(0x2e4a28), x, 0.25, -2.9);
-      const leaves = new Field(g, { n: 30, box: [7, 4, 4], y0: 0.1, color: 0xc08040, size: 0.06, fall: 0.4, drift: 0.8, swirl: 0.5, opacity: 0.85 });
+      // east & west wings with colonnades
+      for (const sx of [-1, 1]) {
+        const wx = sx * 11.5;
+        h.add(new THREE.BoxGeometry(11, 2.5, 1.1), h.mat(0xe2e0da, { roughness: 0.7 }), wx, 1.25, -5);
+        h.add(new THREE.BoxGeometry(11, 0.22, 1.2), h.mat(0xd8d6d0), wx, 2.6, -5);
+        for (let i = 0; i < 8; i++) {
+          const x = wx - 4.6 + i * 1.3;
+          h.add(new THREE.CylinderGeometry(0.1, 0.12, 2.3, 6), h.mat(0xfaf8f2), x, 1.15, -4.3);
+          h.add(new THREE.BoxGeometry(0.42, 0.6, 0.05), h.basic(0xffe9a0), x + 0.65, 1.3, -4.42);
+        }
+      }
+      // fountains
+      for (const fx of [-6.5, 6.5]) {
+        h.add(new THREE.CylinderGeometry(0.9, 1, 0.35, 8), h.mat(0x9a98a0), fx, 0.17, 2.0);
+        h.add(new THREE.CylinderGeometry(0.75, 0.75, 0.1, 8), h.basic(0x5a9cd8), fx, 0.32, 2.0);
+        h.add(new THREE.CylinderGeometry(0.08, 0.12, 0.7, 6), h.mat(0xb0aeb6), fx, 0.6, 2.0);
+      }
+      // hedges + flag poles along the lawn
+      for (const x of [-15, -11, -2.8, 2.8, 11, 15]) h.add(new THREE.BoxGeometry(1.6, 0.5, 0.6), h.mat(0x2e4a28), x, 0.25, -2.9);
+      for (const x of [-16.5, 16.5]) {
+        h.add(new THREE.CylinderGeometry(0.04, 0.05, 4.2, 5), h.mat(0xcccccc), x, 2.1, -2.2);
+        h.add(new THREE.BoxGeometry(1.1, 0.65, 0.03), h.mat(0x2a3a8c), x + 0.58, 3.85, -2.2);
+      }
+      const leaves = new Field(g, { n: 70, box: [17, 4, 4], y0: 0.1, color: 0xc08040, size: 0.06, fall: 0.4, drift: 0.8, swirl: 0.5, opacity: 0.85 });
       return { tick: (dt, t) => { leaves.tick(dt, t); flag.rotation.y = Math.sin(t * 2.2) * 0.18; } };
     },
   },
@@ -255,28 +281,28 @@ export const STAGES = [
     build(g, h) {
       const gr = h.ground(0xdde6ee); // snow
       gr.material.roughness = 0.98;
-      h.add(new THREE.BoxGeometry(11.6, 0.22, 7.1), h.mat(0xb8c4d4), 0, -0.48, -0.6);
+      h.add(new THREE.BoxGeometry(32.6, 0.22, 7.7), h.mat(0xb8c4d4), 0, -0.48, -0.6);
       // mountain backdrop
-      for (const [x, z, s] of [[-6, -8, 5], [0, -10, 7], [6.5, -8.5, 5.5], [-3, -9, 6]]) {
+      for (const [x, z, s] of [[-6, -8, 5], [0, -10, 7], [6.5, -8.5, 5.5], [-3, -9, 6], [-14, -9, 6], [13.5, -9.5, 6.5], [-10, -12, 8], [9.5, -12, 8.5], [-19, -11, 7], [19, -10.5, 6.5]]) {
         h.add(new THREE.ConeGeometry(s * 0.75, s, 5), h.mat(0x4a566a), x, s / 2 - 0.6, z);
         h.add(new THREE.ConeGeometry(s * 0.3, s * 0.42, 5), h.mat(0xe8eef6), x, s - s * 0.22 - 0.6, z);
       }
       // pines with snow
-      for (const [x, z, s] of [[-4.8, -2.8, 1.3], [4.6, -3, 1.5], [-3.4, -3.6, 1], [3.2, -3.8, 1.1], [5.5, -2.2, 0.9], [-5.7, -2.1, 1]]) {
+      for (const [x, z, s] of [[-4.8, -2.8, 1.3], [4.6, -3, 1.5], [-3.4, -3.6, 1], [3.2, -3.8, 1.1], [5.5, -2.2, 0.9], [-5.7, -2.1, 1], [-9, -3.2, 1.4], [9.6, -2.9, 1.2], [-12.4, -3.6, 1.6], [12.2, -3.4, 1.5], [-15.6, -2.6, 1.2], [15.3, -3.8, 1.7], [-7.2, -4.2, 1.8], [7.5, -4.4, 1.7]]) {
         h.pine(x, z, s, 0x1c3a2c, 0xe8f0f8);
       }
       // ice boulders
-      for (let i = 0; i < 5; i++) h.blob(randRange(-5, 5), 0.2, randRange(-3.2, -2.4), randRange(0.25, 0.5), 0xc8d8ea);
+      for (let i = 0; i < 14; i++) h.blob(randRange(-16, 16), 0.2, randRange(-3.2, -2.4), randRange(0.25, 0.5), 0xc8d8ea);
       // aurora sheets
       const auroras = [];
-      for (const [x, c] of [[-3, 0x40e890], [1.5, 0x50c8ff], [5, 0x9060ff]]) {
+      for (const [x, c] of [[-14, 0x50c8ff], [-8, 0x9060ff], [-3, 0x40e890], [1.5, 0x50c8ff], [5, 0x9060ff], [10, 0x40e890], [15, 0x50c8ff]]) {
         const a = h.add(new THREE.PlaneGeometry(3.2, 5.5),
           h.basic(c, { transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
-          x, 7.5, -11);
+          x, 8, -13);
         a.rotation.x = 0.15;
         auroras.push({ a, p: rand() * 9 });
       }
-      const snow = new Field(g, { n: 220, box: [9, 7, 5], y0: 0, color: 0xffffff, size: 0.06, fall: 0.8, drift: 0.9, swirl: 0.4, opacity: 0.9 });
+      const snow = new Field(g, { n: 420, box: [18, 7, 5], y0: 0, color: 0xffffff, size: 0.06, fall: 0.8, drift: 0.9, swirl: 0.4, opacity: 0.9 });
       return {
         tick(dt, t) {
           snow.tick(dt, t);
@@ -294,7 +320,7 @@ export const STAGES = [
     hemi: [0xffc8d8, 0x201622, 0.55], key: 0xfff0e0,
     build(g, h) {
       h.ground(0x5a6a4a);
-      h.add(new THREE.BoxGeometry(11.6, 0.22, 7.1), h.mat(0x8a8578), 0, -0.48, -0.6);
+      h.add(new THREE.BoxGeometry(32.6, 0.22, 7.7), h.mat(0x8a8578), 0, -0.48, -0.6);
       // torii gate
       const red = h.mat(0xc42838);
       for (const x of [-1.5, 1.5]) h.add(new THREE.CylinderGeometry(0.16, 0.2, 3.1, 7), red, x, 1.55, -3.6);
@@ -302,7 +328,7 @@ export const STAGES = [
       beam.rotation.z = 0; h.add(new THREE.BoxGeometry(3.6, 0.24, 0.34), red, 0, 2.6, -3.6);
       h.add(new THREE.BoxGeometry(4.9, 0.16, 0.5), h.mat(0x35202a), 0, 3.52, -3.6);
       // blossom trees
-      for (const [x, z, s] of [[-4.6, -3, 1.5], [4.8, -3.2, 1.7], [-6, -2, 1.1], [6.2, -1.8, 1]]) {
+      for (const [x, z, s] of [[-4.6, -3, 1.5], [4.8, -3.2, 1.7], [-6, -2, 1.1], [6.2, -1.8, 1], [-9.5, -3.4, 1.8], [10, -3, 1.6], [-13, -2.4, 1.4], [13.6, -2.6, 1.9], [-16, -3.6, 1.7], [16.4, -3.3, 1.5]]) {
         const tr = h.add(new THREE.CylinderGeometry(0.14 * s, 0.22 * s, 1.6 * s, 5), h.mat(0x4a3020), x, 0.8 * s, z);
         tr.rotation.z = randRange(-0.15, 0.15);
         h.blob(x + 0.2, 1.9 * s, z, 0.95 * s, 0xf4a8c0);
@@ -310,7 +336,7 @@ export const STAGES = [
         h.blob(x + 0.7, 1.45 * s, z - 0.2, 0.55 * s, 0xee9ab4);
       }
       // stone lanterns
-      for (const x of [-2.6, 2.6]) {
+      for (const x of [-12, -7.5, -2.6, 2.6, 7.5, 12]) {
         h.add(new THREE.CylinderGeometry(0.12, 0.16, 0.55, 6), h.mat(0x8a8880), x, 0.27, 2.4);
         h.add(new THREE.BoxGeometry(0.34, 0.28, 0.34), h.mat(0x9a988e), x, 0.68, 2.4);
         h.add(new THREE.BoxGeometry(0.12, 0.1, 0.12), h.basic(0xffd890), x, 0.66, 2.28);
@@ -318,10 +344,12 @@ export const STAGES = [
       }
       // distant pagoda silhouette
       for (let i = 0; i < 3; i++) {
-        h.add(new THREE.BoxGeometry(1.6 - i * 0.35, 0.7, 1.6 - i * 0.35), h.mat(0x2c1e28), -7.5, 0.7 + i * 0.85, -7);
-        h.add(new THREE.ConeGeometry(1.35 - i * 0.28, 0.5, 4), h.mat(0x8c2030), -7.5, 1.3 + i * 0.85, -7, Math.PI / 4);
+        for (const [px, pz, ps] of [[-11, -8, 1.2], [12, -9, 1]]) {
+          h.add(new THREE.BoxGeometry((1.6 - i * 0.35) * ps, 0.7 * ps, (1.6 - i * 0.35) * ps), h.mat(0x2c1e28), px, (0.7 + i * 0.85) * ps, pz);
+          h.add(new THREE.ConeGeometry((1.35 - i * 0.28) * ps, 0.5 * ps, 4), h.mat(0x8c2030), px, (1.3 + i * 0.85) * ps, pz, Math.PI / 4);
+        }
       }
-      const petals = new Field(g, { n: 160, box: [8, 5.5, 5], y0: 0, color: 0xffb8cc, size: 0.075, fall: 0.45, drift: 1.1, swirl: 0.8, opacity: 0.9 });
+      const petals = new Field(g, { n: 300, box: [18, 5.5, 5], y0: 0, color: 0xffb8cc, size: 0.075, fall: 0.45, drift: 1.1, swirl: 0.8, opacity: 0.9 });
       return { tick: (dt, t) => petals.tick(dt, t) };
     },
   },
@@ -333,7 +361,7 @@ export const STAGES = [
       const sand = h.ground(0xdcc490);
       sand.material.roughness = 1;
       // ocean
-      const ocean = h.add(new THREE.PlaneGeometry(40, 18), h.mat(0x2c6a86, { roughness: 0.2, metalness: 0.35 }), 0, -0.12, -12);
+      const ocean = h.add(new THREE.PlaneGeometry(80, 22), h.mat(0x2c6a86, { roughness: 0.2, metalness: 0.35 }), 0, -0.12, -12);
       ocean.rotation.x = -Math.PI / 2;
       // sun on horizon
       h.add(new THREE.SphereGeometry(1.6, 12, 10), h.basic(0xffcf70, { fog: false }), 3, 1.2, -19);
@@ -352,7 +380,7 @@ export const STAGES = [
       const glow = h.add(new THREE.PlaneGeometry(10, 10), h.basic(0xffffff, { map: glowTex, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }), 3, 1.6, -18.8);
       // palms
       const palms = [];
-      for (const [x, z, lean] of [[-4.9, -2.4, 0.35], [5.1, -2.8, -0.3], [-6.2, -1.6, 0.5]]) {
+      for (const [x, z, lean] of [[-4.9, -2.4, 0.35], [5.1, -2.8, -0.3], [-6.2, -1.6, 0.5], [-10.5, -2.6, 0.25], [10.8, -2.2, -0.45], [14.2, -1.9, -0.2], [-14.6, -2.9, 0.4], [-17, -1.8, 0.3], [17.4, -2.7, -0.35]]) {
         const trunk = new THREE.Group();
         for (let i = 0; i < 5; i++) {
           const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.11 - i * 0.012, 0.13 - i * 0.012, 0.62, 5), h.mat(0x8a6a45));
@@ -376,9 +404,9 @@ export const STAGES = [
         palms.push({ top, p: rand() * 9 });
       }
       // rocks + starfish props
-      for (let i = 0; i < 4; i++) h.blob(randRange(-5, 5), 0.15, randRange(2, 2.9), randRange(0.18, 0.4), 0x9a8a78);
+      for (let i = 0; i < 12; i++) h.blob(randRange(-16, 16), 0.15, randRange(2, 2.9), randRange(0.18, 0.4), 0x9a8a78);
       h.add(new THREE.CylinderGeometry(0.02, 0.35, 0.1, 5), h.mat(0xe86a50), 2.2, 0.05, 2.3);
-      const spray = new Field(g, { n: 50, box: [10, 1.6, 2], y0: 0.05, color: 0xfff4e0, size: 0.05, fall: 0.25, drift: 1.3, opacity: 0.5 });
+      const spray = new Field(g, { n: 110, box: [20, 1.6, 2], y0: 0.05, color: 0xfff4e0, size: 0.05, fall: 0.25, drift: 1.3, opacity: 0.5 });
       return {
         tick(dt, t) {
           spray.tick(dt, t);

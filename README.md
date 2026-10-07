@@ -22,19 +22,26 @@ Serve over HTTPS (or localhost) for the service worker / install prompt to activ
 
 ## How a round works
 
-1. **Betting phase (30s)** — the table screen. Each fighter owns half the felt with a big
-   *WINS* zone plus *BY KO* / *BY DECISION* pockets; shared props (distance, fatality,
-   strike over/under, KO-round) run down the center. Pick a chip, tap a zone. Bot
-   bettors drop their own chips and show up in the activity feed.
-2. **The table swings open** and the arena is revealed: fighter entrances, tale of the
-   tape, countdown, bell.
-3. **The fight** — on a randomly rotated themed stage, up to 3 rounds of 3:00
-   game-time at 3× speed (≤ 3 real minutes), with each fighter's signature special
-   woven into the action.
-   Live prop huddles flank the arena and re-price every ~1.6s; the collapsible bet slip
-   offers cash-out on every open ticket. Bots keep firing live bets to keep the rail noisy.
-4. **Result** — KO / decision / fatality sequence, bets settle, bankroll updates,
-   and the next randomly-drawn matchup rotates in automatically.
+1. **Lobby / betting (30s)** — the neon betting table sits over the live 3D stage.
+   Each corner shows a live 3D cutout of its fighter running a warm-up loop
+   (shadow-boxing, shoulder rolls, flexes, beckons) behind the big *WINS* zone and
+   *BY KO* / *BY DECISION* pockets; shared props run down the center under a live
+   red-vs-blue **money split**. Bot players sit on the rail at the top: their chips
+   fly to the zones they back, zones show pool size and bettor counts, and badges
+   flag what's moving — **🔥 HEATING UP** (rapid action), **👥 CROWD PICK** (the
+   money favorite), **⚡ HIT N STRAIGHT / ❄ COLD N** (bet types on a run across
+   recent fights). Under 10 seconds: LAST CALL, red edge pulse, ticking, shaking
+   timer and a bot betting frenzy.
+2. **The table swings open**: camera sweep onto the stage, each fighter's close-up
+   call-out with their signature special, tale of the tape, 3-2-1, FIGHT.
+3. **The fight** — up to 3 rounds of **30 real seconds** each (90s if it goes the
+   distance; the engine still models 3:00 game rounds, played at 6×). MK-style
+   dynamic camera, fast movement, combo bursts, specials, combo counter and
+   per-hit health bars. Live props flank the arena and re-price every ~1.2s with
+   odds-movement flashes; the bet slip offers cash-out on every open ticket.
+4. **Result** — K.O. / FATALITY / decision sequence, then a result card with the
+   winner's live victory pose, your settled tickets, a net ticker, coin/confetti
+   showers on a win, and how every bot at the table did. Next fight rotates in.
 
 ## The 96% RTP engine (`js/engine.js`)
 
@@ -57,46 +64,59 @@ The fight you watch is choreography (`js/sim.js`): the pre-drawn outcome is expa
 into a timeline of strikes, knockdowns and HP targets, so the presentation always lands
 exactly on the drawn result (winner, method, round, time, strike totals).
 
-## The 3D arena (`js/render3d.js` + `js/stages.js`)
+## The 3D arena
 
-The fight scene is true 3D (Three.js, vendored in `vendor/` — still no build step and
-fully offline) with the camera locked front-on and slightly elevated for a 2.5D read.
-The whole presentation is Mortal-Kombat flavored: ninjas, specials, themed stages.
+The fight scene is true 3D (Three.js, vendored in `vendor/` — no build step, works
+offline) presented Mortal-Kombat style.
 
-- **Stages**: every match is fought on one of 7 themed 2.5D platform arenas, rotated
-  so no stage repeats until all have been seen — Jungle Temple, Blood Keep (castle),
-  Orbital Kolosseum (space), The White House, Siberian Summit, Sakura Garden, and
-  Sunset Shores (beach). Each stage sets its own sky gradient, fog, and light tints and
-  builds its own low-poly scenery, with a live ambient system per theme: falling cherry
-  petals, snow + pulsing aurora, fireflies, torch flames + embers, twinkling starfield
-  with floating crystals, swaying palms and a breathing sunset. Stages are fully
-  disposed between matches, so the rotation never leaks memory.
-- **Fighters** are a 15-strong roster of pop-culture parody caricatures (Donnie
-  "The Don" Thump, Zoltan "Ibra" Kadabra, Duane "The Boulder" Rockson, Simone "Twist"
-  Skyles, Hillary "Madam" Quinton, Sai "Oppa" Park, CiCi "Frost" Spice, Gene "The
-  Demon" Summons, Napoleon "Le Petit" Blownapart, Joe "Tiger King" Chaotic, Gordon
-  "Chef" Slamsey, Wolfgang "Amadeus" Beatdown, Nikola "AC" Teslash, Melon
-  "Technoking" Tusk, and Odysseus "Nobody" of Ithaca). Each is built by a data-driven
-  character rig (`js/charrig.js`): a `look` spec controls stature/bulk/belly/shoulder
-  build, skin and hair, hairstyles (combover, bob, bun, ponytail, mullet, afro,
-  powdered wig...), noses, brows, facial hair, face paint, and full outfits — suits
-  with lapels and ties, chef whites, bronze hoplite armor with cape and pteruges,
-  military coats with epaulettes and a bicorne, leotards, jerseys with numbers, band
-  regalia with studs and shoulder spikes. All of it hangs on the same named bone
-  hierarchy (hips → spine → chest → neck/head, shoulders → elbows, thighs → knees)
-  the animator drives, so every move works on every body and skinned glTF rigs can
-  replace the parts later without touching fight logic. Fighters turn to face the
-  camera for the tale-of-the-tape and victory poses.
-- **Specials**: every fighter has a signature special the choreographer splices into
-  their strike timeline (a special *is* one of the drawn landed strikes, so betting
-  totals stay exact): fireball projectiles in the fighter's color (glowing orb, point
-  light, trail, impact burst), teleport strikes (vanish → reappear behind the opponent
-  → backfist), flying kicks, and ground-slam shockwaves with expanding ring VFX. Each
-  has its own synth SFX and a call-out toast naming the move.
-- **Camera**: locked forward with subtle breathing, impact shake, a slow-mo punch-in on
-  knockdowns, and screen-flash overlays for big moments.
-- **FX**: pooled additive particle system (impact sparks, KO bursts, shockwave rings,
-  projectile trails, teleport bursts, fatality soul trail + body dissolve).
+- **Camera director** (`js/camera.js`): tracks the fighters' midpoint; distance *and*
+  field of view follow their separation (tight telephoto when they're toe-to-toe,
+  wide when they spread out), with a slow orbit drift, zoom-punches and dutch-tilt
+  kicks on impacts, hit-stop on heavy blows, and cinematic modes for the intro
+  sweep, fighter close-ups, KO orbit, low fatality angle, lobby flyover and breaks.
+- **Movement director** (`js/render3d.js`): fighters dash, backdash, jump, vault
+  over each other out of corners, get knocked back, zone (fireball users keep
+  range) and reset spacing after every exchange, across stages ~3× wider than
+  before. Choreography decides *what* happens and *when*; `main.js` streams the
+  next scripted attack to the arena (`anticipate()`), which closes the distance
+  just in time so every hit visibly lands.
+- **Choreography** (`js/sim.js`): landed strikes are grouped into exchanges (2-5 hit
+  combos, sometimes answered by a counter, sometimes a blocked opener) and
+  standalone signature specials, with neutral spacing between. Each fighter's
+  landed strikes per round still match the drawn outcome exactly, and every hit
+  carries its share of the scripted HP loss.
+- **Stages** (`js/stages.js`): 7 themed platform arenas — Jungle Temple, Blood
+  Keep, Orbital Kolosseum, The White House, Siberian Summit, Sakura Garden,
+  Sunset Shores — each with its own sky, fog, lighting, low-poly scenery and
+  ambient FX, rotated per match and fully disposed between matches.
+- **Specials**: fireball projectiles, teleport strikes, flying kicks and
+  ground-slam shockwaves, each with VFX, synth SFX and a move-name banner.
+
+## Characters & imported models
+
+Fighters are pop-culture parody caricatures (`js/fighters.js`). Each one is
+animated by a procedural pose system on a named **driver rig**
+(`js/fighter.js`); characters with an imported model wear it via the
+**retargeter** (`js/models.js`), which copies the driver's limb orientations onto
+the model's humanoid skeleton in world space every frame (so it's independent of
+each rig's bone-axis conventions) and curls the fingers into fists. Characters
+without a model fall back to the procedural caricature rig (`js/charrig.js`).
+
+Imported so far: The Don, Ibra, Frost, Chef, Amadeus.
+
+### Adding a model
+
+1. Put the rigged FBX (standard humanoid bone names — Mixamo-style `Hips`, `Spine`,
+   `LeftArm`, … with any `prefix:`) in `assets/models/src/<name>.fbx`.
+2. Convert it to a web-ready GLB:
+   ```sh
+   cd tools && npm install && npm run convert-models -- <name>
+   ```
+   This extracts the embedded texture (the Blender `.fbm` reference isn't readable
+   on the web), welds the triangle soup into indexed geometry, renames bones and
+   writes `assets/models/<name>.glb` (~1 MB, texture at 1024²; `MAX_TEX=2048`
+   for sharper).
+3. Add `model: '<name>'` to the fighter in `js/fighters.js`.
 
 ## Deploying (GitHub Pages)
 
@@ -121,16 +141,25 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 |---|---|
 | `js/engine.js` | Generative fight model, Monte-Carlo odds, markets, live pricing, cash-out |
 | `js/sim.js` | Outcome → choreography timeline + HP script |
-| `js/render3d.js` | 3D renderer (Three.js), fight animation, specials VFX, camera, particles |
-| `js/charrig.js` | Data-driven caricature character builder (looks → meshes on the shared bone rig) |
+| `js/render3d.js` | 3D arena: stage/lights, movement director, specials VFX, particles |
+| `js/camera.js` | MK-style camera director |
+| `js/fighter.js` | Fighter pose animator (driver rig) + model attachment |
+| `js/models.js` | GLB loading/cloning + world-space retargeter |
+| `js/charrig.js` | Driver rig + procedural caricature fallback meshes |
+| `js/portraits.js` | Live 3D cutouts for the lobby and result card (shares the renderer) |
+| `js/fx.js` | Screen-space VFX: chip flights, sparks, embers, coins, confetti |
 | `js/stages.js` | 7 themed stage builders + ambient particle systems |
-| `js/table.js` | Craps-style betting table, chips, chip tray |
-| `js/hud.js` | HP/clock HUD, live-prop huddles, bet slip, toasts, announcements |
-| `js/bots.js` | Bot bettors (fake multiplayer, swappable for networking later) |
+| `js/table.js` | Neon betting table, cutout slots, pools, badges, money split, chip tray |
+| `js/hud.js` | Health bars, timer, combo counter, special banners, live props, bet slip |
+| `js/bots.js` | Bot players with personalities (chalk/longshot/crowd/streak) |
 | `js/fighters.js` | Fighter bank + matchmaking |
-| `js/main.js` | Phase state machine: betting → intro → rounds → result → repeat |
+| `js/main.js` | Phase state machine, heat/streak tracking, timing |
 | `js/audio.js` | WebAudio-synthesized SFX (no assets) |
 | `sw.js`, `manifest.webmanifest` | PWA shell caching + install metadata |
+| `tools/` | Dev-only FBX → GLB model converter |
+| `fonts/` | Bungee, Teko, Rajdhani (SIL OFL, licenses included) |
+
+Testing tip: `?fighters=thump,zoltan&stage=sakura` pins the first match.
 
 ## Roadmap hooks
 

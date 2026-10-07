@@ -1,26 +1,40 @@
 // Polyarena service worker: precache the app shell, serve cache-first with
-// background refresh so the game works offline once visited.
+// background refresh so the game works offline once visited. Character
+// models (assets/models/*.glb, ~1 MB each) are cached on first use rather
+// than precached, to keep the first load light.
 
-const CACHE = 'polyarena-v4';
+const CACHE = 'polyarena-v5';
 const SHELL = [
   '.',
   'index.html',
   'manifest.webmanifest',
   'css/styles.css',
+  'fonts/bungee.woff2',
+  'fonts/teko.woff2',
+  'fonts/rajdhani-600.woff2',
+  'fonts/rajdhani-700.woff2',
   'js/main.js',
   'js/util.js',
   'js/fighters.js',
   'js/engine.js',
   'js/sim.js',
   'js/render3d.js',
-  'js/stages.js',
+  'js/camera.js',
+  'js/fighter.js',
   'js/charrig.js',
-  'vendor/three.module.min.js',
-  'vendor/three.core.min.js',
+  'js/models.js',
+  'js/portraits.js',
+  'js/stages.js',
   'js/table.js',
   'js/hud.js',
   'js/bots.js',
+  'js/fx.js',
   'js/audio.js',
+  'vendor/three.module.min.js',
+  'vendor/three.core.min.js',
+  'vendor/jsm/loaders/GLTFLoader.js',
+  'vendor/jsm/utils/BufferGeometryUtils.js',
+  'vendor/jsm/utils/SkeletonUtils.js',
   'icons/icon.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',

@@ -1,0 +1,55 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js"}}</script>
+</head><body>
+<script type="module">
+// Browser half of the converter: FBX (+ extracted texture) -> GLB.
+import * as THREE from 'three';
+import { FBXLoader } from '/three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFExporter } from '/three/examples/jsm/exporters/GLTFExporter.js';
+import { mergeVertices } from '/three/examples/jsm/utils/BufferGeometryUtils.js';
+
+// Silence the loader's attempt to fetch the unreadable .fbm texture reference.
+const manager = new THREE.LoadingManager();
+const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+manager.setURLModifier(url => (/\.fbm|\/tex-missing/i.test(url) ? PIXEL : url));
+
+window.convert = async (name, maxTex) => {
+  const obj = await new FBXLoader(manager).loadAsync(`/src/${name}.fbx`);
+  const img = await new Promise((res, rej) => {
+    const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = `/tex/${name}.jpg`;
+  });
+  const map = new THREE.Texture(img);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.userData.mimeType = 'image/jpeg';
+  map.needsUpdate = true;
+
+  const stats = { bones: [], verts: 0 };
+  obj.traverse(o => {
+    // Normalize bone names: "smartrig:Hips" / "mixamorig:Hips" -> "Hips".
+    if (o.isBone) {
+      o.name = o.name.replace(/^(smartrig|mixamorig)[:_]?/i, '');
+      stats.bones.push(o.name);
+    }
+    if (o.isMesh) {
+      // FBXLoader emits un-indexed triangle soup; weld identical vertices.
+      const before = o.geometry.attributes.position.count;
+      const g = o.geometry;
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight'].includes(k)) g.deleteAttribute(k);
+      o.geometry = mergeVertices(g, 1e-5);
+      stats.welded = before + ' -> ' + o.geometry.attributes.position.count;
+      stats.verts += o.geometry.attributes.position.count;
+      o.material = new THREE.MeshStandardMaterial({ map, roughness: 0.72, metalness: 0, name: name + '_skin' });
+    }
+  });
+  obj.animations = []; // the FBX only carries a 1-frame bind pose
+
+  const glb = await new GLTFExporter().parseAsync(obj, { binary: true, maxTextureSize: maxTex, onlyVisible: true });
+  const bytes = new Uint8Array(glb);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return { b64: btoa(bin), stats };
+};
+document.title = 'ready';
+</script>
+</body></html>

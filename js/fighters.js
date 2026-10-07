@@ -2,13 +2,14 @@
 // intentionally stylized). Stats are 0-100 and feed the generative model:
 //   power/speed/defense/chin/stamina/aggression/flair (fatality odds).
 // `look` drives the character rig (js/charrig.js); `trunks` is the portrait
-// color and `accent` colors that fighter's special VFX.
+// color and `accent` colors that fighter's special VFX. `model` names an
+// imported rigged GLB in assets/models/ (falls back to the procedural rig).
 
 import { pick, randInt } from './util.js';
 
 export const FIGHTERS = [
   {
-    id: 'thump', name: 'Donnie "The Don" Thump', origin: 'The Golden Tower', style: 'Executive Orders',
+    id: 'thump', model: 'the_don', name: 'Donnie "The Don" Thump', origin: 'The Golden Tower', style: 'Executive Orders',
     special: { kind: 'fireball', name: "You're Fired!" },
     skin: '#f0a060', trunks: '#16305e', accent: '#ff7020', hair: '#f5d76a',
     power: 72, speed: 45, defense: 52, chin: 74, stamina: 48, aggression: 88, flair: 85,
@@ -17,7 +18,7 @@ export const FIGHTERS = [
       h: 1.04, belly: 0.28 },
   },
   {
-    id: 'zoltan', name: 'Zoltan "Ibra" Kadabra', origin: 'Malmö', style: 'Bendy-Kick Taekwondo',
+    id: 'zoltan', model: 'ibra', name: 'Zoltan "Ibra" Kadabra', origin: 'Malmö', style: 'Bendy-Kick Taekwondo',
     special: { kind: 'flyingkick', name: 'Ibra Volley' },
     skin: '#dfb691', trunks: '#ffd327', accent: '#ffd000', hair: '#241a12',
     power: 84, speed: 82, defense: 58, chin: 70, stamina: 76, aggression: 82, flair: 88,
@@ -62,7 +63,7 @@ export const FIGHTERS = [
       extras: ['sunglasses', 'bowtie'], h: 0.97, belly: 0.16 },
   },
   {
-    id: 'spice', name: 'CiCi "Frost" Spice', origin: 'The Bronx', style: 'Drill Flow',
+    id: 'spice', model: 'frost', name: 'CiCi "Frost" Spice', origin: 'The Bronx', style: 'Drill Flow',
     special: { kind: 'fireball', name: 'Cold Bars' },
     skin: '#9c6844', trunks: '#8ae0ff', accent: '#8ae0ff', hair: '#c05a28',
     power: 52, speed: 86, defense: 56, chin: 52, stamina: 78, aggression: 74, flair: 82,
@@ -98,7 +99,7 @@ export const FIGHTERS = [
       h: 1.0 },
   },
   {
-    id: 'slamsey', name: 'Gordon "Chef" Slamsey', origin: 'London', style: 'Kitchen Nightmare-Fu',
+    id: 'slamsey', model: 'chef', name: 'Gordon "Chef" Slamsey', origin: 'London', style: 'Kitchen Nightmare-Fu',
     special: { kind: 'fireball', name: "It's RAW!" },
     skin: '#ecbfa2', trunks: '#f0f0f2', accent: '#ff6020', hair: '#e8d8b0',
     power: 74, speed: 64, defense: 56, chin: 72, stamina: 66, aggression: 96, flair: 72,
@@ -107,7 +108,7 @@ export const FIGHTERS = [
       h: 1.05 },
   },
   {
-    id: 'wolfgang', name: 'Wolfgang "Amadeus" Beatdown', origin: 'Salzburg', style: 'Rondo alla Smacka',
+    id: 'wolfgang', model: 'amadeus', name: 'Wolfgang "Amadeus" Beatdown', origin: 'Salzburg', style: 'Rondo alla Smacka',
     special: { kind: 'teleport', name: 'Allegro Step' },
     skin: '#f2d8c0', trunks: '#a02030', accent: '#ffb8e8', hair: '#ece8e2',
     power: 48, speed: 90, defense: 68, chin: 54, stamina: 74, aggression: 48, flair: 86,
