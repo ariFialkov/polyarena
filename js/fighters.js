@@ -27,7 +27,7 @@ export const FIGHTERS = [
       h: 1.12, bulk: 1.02 },
   },
   {
-    id: 'boulder', name: 'Duane "The Boulder" Rockson', origin: 'Hollywood', style: 'Heavyweight Charisma',
+    id: 'boulder', model: 'the_boulder', name: 'Duane "The Boulder" Rockson', origin: 'Hollywood', style: 'Heavyweight Charisma',
     special: { kind: 'shockwave', name: 'Boulder Bomb' },
     skin: '#7a5236', trunks: '#23262e', accent: '#e8a040', hair: '#241a10',
     power: 96, speed: 58, defense: 64, chin: 92, stamina: 70, aggression: 76, flair: 62,
@@ -36,7 +36,7 @@ export const FIGHTERS = [
       h: 1.15, bulk: 1.32, shoulders: 1.18 },
   },
   {
-    id: 'skyles', name: 'Simone "Twist" Skyles', origin: 'Columbus', style: 'G.O.A.T. Gymnastics-Fu',
+    id: 'skyles', model: 'twist', name: 'Simone "Twist" Skyles', origin: 'Columbus', style: 'G.O.A.T. Gymnastics-Fu',
     special: { kind: 'flyingkick', name: 'Quad Twist' },
     skin: '#8a5a3c', trunks: '#6a1fd0', accent: '#c9a2ff', hair: '#181008',
     power: 56, speed: 98, defense: 74, chin: 56, stamina: 94, aggression: 58, flair: 92,
@@ -72,7 +72,7 @@ export const FIGHTERS = [
       extras: ['chain'], h: 0.9 },
   },
   {
-    id: 'summons', name: 'Gene "The Demon" Summons', origin: 'Rock City', style: 'Shock-Rock Kabuki',
+    id: 'summons', model: 'the_demon', name: 'Gene "The Demon" Summons', origin: 'Rock City', style: 'Shock-Rock Kabuki',
     special: { kind: 'fireball', name: 'Blood Spit' },
     skin: '#e0c0a8', trunks: '#14141c', accent: '#ff2030', hair: '#0c0a10',
     power: 78, speed: 54, defense: 62, chin: 82, stamina: 58, aggression: 84, flair: 98,
@@ -90,7 +90,7 @@ export const FIGHTERS = [
       extras: ['bicorne', 'epaulettes'], h: 0.84, belly: 0.12 },
   },
   {
-    id: 'chaotic', name: 'Joe "Tiger King" Chaotic', origin: 'Wynnewood', style: 'Big-Cat Brawling',
+    id: 'chaotic', model: 'tiger_king', name: 'Joe "Tiger King" Chaotic', origin: 'Wynnewood', style: 'Big-Cat Brawling',
     special: { kind: 'flyingkick', name: 'Tiger Pounce' },
     skin: '#e0b090', trunks: '#d86a18', accent: '#ff9020', hair: '#e8c86a',
     power: 58, speed: 66, defense: 46, chin: 64, stamina: 62, aggression: 94, flair: 90,
@@ -135,7 +135,7 @@ export const FIGHTERS = [
       h: 1.03, belly: 0.12 },
   },
   {
-    id: 'odysseus', name: 'Odysseus "Nobody" of Ithaca', origin: 'Ithaca', style: 'Polymetis Pankration',
+    id: 'odysseus', model: 'nobody', name: 'Odysseus "Nobody" of Ithaca', origin: 'Ithaca', style: 'Polymetis Pankration',
     special: { kind: 'teleport', name: 'Trojan Trick' },
     skin: '#caa06c', trunks: '#c09040', accent: '#e8b040', hair: '#2e2014',
     power: 78, speed: 70, defense: 80, chin: 78, stamina: 82, aggression: 64, flair: 68,

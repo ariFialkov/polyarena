@@ -102,9 +102,8 @@ the model's humanoid skeleton in world space every frame (so it's independent of
 each rig's bone-axis conventions) and curls the fingers into fists. Characters
 without a model fall back to the procedural caricature rig (`js/charrig.js`).
 
-Imported so far (10 of 15): The Don, Ibra, Frost, Chef, Amadeus, Technoking, Oppa,
-Madam, Le Petit, AC. Still procedural: The Boulder, Twist, The Demon, Tiger King,
-Odysseus.
+All 15 fighters use imported models. The procedural caricature rig remains as the
+fallback while a model is downloading (or for any future fighter without one).
 
 ### Adding a model
 
