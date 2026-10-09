@@ -102,9 +102,12 @@ export class FX {
 
   draw() {
     const c = this.ctx;
+    const idle = !this.parts.length && !this.flights.length && !this.rings.length;
+    if (idle && this.clean) return;       // nothing drawn last frame either
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, this.W, this.H);
-    if (!this.parts.length && !this.flights.length && !this.rings.length) return;
+    this.clean = idle;
+    if (idle) return;
 
     c.globalCompositeOperation = 'lighter';
     for (const r of this.rings) {

@@ -96,14 +96,11 @@ offline) presented Mortal-Kombat style.
 
 Fighters are pop-culture parody caricatures (`js/fighters.js`) wearing imported
 rigged models, animated with **motion-captured Mixamo clips** (see below).
-Until a model and the clip library have loaded, a procedural pose system on a
-named **driver rig** (`js/fighter.js`) animates them instead: the
-**retargeter** in `js/models.js` copies the driver's limb orientations onto the
-model's skeleton, and with no model at all the procedural caricature rig
-(`js/charrig.js`) is shown.
-
-All 15 fighters use imported models. The procedural caricature rig remains as the
-fallback while a model is downloading (or for any future fighter without one).
+A fighter stays hidden until both its model and the clip library have loaded,
+so there's no placeholder geometry and no T-pose flash. If the clip library
+fails to load, a procedural pose system on an invisible driver rig
+(`js/fighter.js`, `js/charrig.js`) animates the model instead, through the
+retargeter in `js/models.js`.
 
 ### Motion capture and fighting styles
 
@@ -138,7 +135,13 @@ dropkicks, sweeps, throws, casts and a takedown.
 - **Hit sync** (`js/render3d.js`): as soon as an attack is the next scripted
   event, the arena plans it:
   1. It picks the clip.
-  2. It sets the spacing from that clip's reach and travel.
+  2. It sets the spacing from that clip's reach and travel. Reach is
+     **measured on each model**: the first time a fighter uses a clip, a
+     probe rig poses their model at the impact frame and records where the
+     fist, foot, knee, elbow or forehead ends up. Spacing then follows every
+     caricature's own arm and leg lengths, plus the victim's body depth at
+     that height (head, torso or legs). The result is cached per clip, so
+     it's a one-off cost of about 0.1 ms.
   3. It launches the clip early, so the wind-up plays before the scripted
      moment.
   4. Every frame it retunes the clip's speed so the **impact frame lands
@@ -146,6 +149,10 @@ dropkicks, sweeps, throws, casts and a takedown.
 
   Reactions are picked by the strike's height (head or body) and weight.
   Blocked strikes raise the defender's guard just before the blow.
+- **Retargeting the spine**: limbs align their rest directions with the
+  Mixamo rig. The hips, spine, neck and head keep the model's own upright
+  posture, so heads look straight ahead instead of being re-aimed at a
+  facial bone.
 - **Knockdowns** (`js/sim.js`): in some rounds, the last blow of an exchange
   drops the fighter taking the beating. They hit the canvas and get back up,
   while the attacker plays to the crowd with their taunt. This is
@@ -181,6 +188,28 @@ with metadata in `anims.json`.
    for sharper).
 3. Add `model: '<name>'` to the fighter in `js/fighters.js`.
 
+## Performance
+
+- **Dynamic resolution** (`Arena.adaptResolution`): rendering starts at up to
+  1.5× pixel ratio. It steps down while frames take longer than 20 ms
+  (minimum 0.75×) and back up to the device ratio when there's headroom.
+  Fill rate is the main cost on phones and high-DPI screens.
+- **No shader hitches**:
+  - Fireball glow lights are pooled permanently in the scene (dark when
+    idle), because adding a light would recompile every material.
+  - Shaders are compiled with `compileAsync` as soon as a model arrives.
+- **Animation**:
+  - Fighters switch between stance and walk with hysteresis.
+  - Hit-sync speed changes are smoothed.
+  - Only heavy blows get a short freeze-frame.
+- **Lobby cutouts** refresh at up to 30 fps. Each one is a copy out of the
+  WebGL canvas, which stalls the GPU.
+- The 2D effects overlay skips its full-screen clear when there's nothing to
+  draw.
+- **Models**: about 15k triangles, one mesh and one 1024² texture each. A
+  fight scene is about 60k triangles in about 35 draw calls.
+- Add `?fps=1` to the URL for a frame-rate, resolution and draw-call meter.
+
 ## Deploying (GitHub Pages)
 
 `.github/workflows/pages.yml` publishes the repo as a static site on every push to the
@@ -210,7 +239,7 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 | `js/models.js` | GLB loading/cloning + driver-rig retargeter (procedural fallback) |
 | `js/anim.js` | Mocap clip library, per-fighter clip player, retargeting + mirroring |
 | `js/styles.js` | Per-fighter fighting-style kits and strike→clip selection |
-| `js/charrig.js` | Driver rig + procedural caricature fallback meshes |
+| `js/charrig.js` | Invisible driver rig for the procedural fallback |
 | `js/portraits.js` | Live 3D cutouts for the lobby and result card (shares the renderer) |
 | `js/fx.js` | Screen-space VFX: chip flights, sparks, embers, coins, confetti |
 | `js/stages.js` | 7 themed stage builders + ambient particle systems |

@@ -798,6 +798,12 @@ function saveBank() {
 // Main loop
 // ---------------------------------------------------------------------------
 
+// ?fps=1 shows a frame-rate / resolution meter
+const fpsEl = new URLSearchParams(location.search).has('fps') ? document.body.appendChild(Object.assign(document.createElement('div'), {
+  style: 'position:fixed;left:6px;bottom:6px;z-index:99;font:12px monospace;color:#9f9;background:#000a;padding:2px 6px;border-radius:4px;pointer-events:none',
+})) : null;
+let fpsT = 0;
+
 function loop(ts) {
   const dt = Math.min(0.1, (ts - lastFrame) / 1000 || 0.016);
   lastFrame = ts;
@@ -863,6 +869,10 @@ function loop(ts) {
   }
   fx.update(dt);
   fx.draw();
+  if (fpsEl && (fpsT += dt) > 0.5) {
+    fpsT = 0;
+    fpsEl.textContent = `${Math.round(arena.fps || 0)} fps · ${arena.pr.toFixed(2)}x · ${arena.renderer.info.render.calls} calls`;
+  }
 
   requestAnimationFrame(loop);
 }

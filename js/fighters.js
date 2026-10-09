@@ -1,9 +1,10 @@
 // Fighter bank: pop-culture parody caricatures (names changed, resemblance
 // intentionally stylized). Stats are 0-100 and feed the generative model:
 //   power/speed/defense/chin/stamina/aggression/flair (fatality odds).
-// `look` drives the character rig (js/charrig.js); `trunks` is the portrait
+// `look.h` sets each fighter's stature (the rest of `look` describes the
+// caricature for reference); `trunks` is the portrait
 // color and `accent` colors that fighter's special VFX. `model` names an
-// imported rigged GLB in assets/models/ (falls back to the procedural rig).
+// imported rigged GLB in assets/models/.
 
 import { pick, randInt } from './util.js';
 

@@ -1,8 +1,9 @@
 // Imported character models (GLB, converted from the uploaded rigged FBX
 // files by tools/convert-models.mjs) and the retargeter that drives them.
 //
-// The fight animator keeps posing an invisible "driver" rig (the named bone
-// groups built by charrig.js: hips, spine, chest, neck, arms{sh,el},
+// Fallback path (used only if the motion-capture library fails to load; see
+// js/anim.js for the normal path): the procedural animator poses an
+// invisible "driver" rig (the named bone groups built by charrig.js: hips, spine, chest, neck, arms{sh,el},
 // legs{th,kn}). Every frame the Retargeter copies the driver's limb
 // orientations onto the model's humanoid skeleton in WORLD space:
 //

@@ -14,7 +14,7 @@
 
 import * as THREE from '../vendor/three.module.min.js';
 import { clamp, rand, randRange, pick } from './util.js';
-import { buildCharacterRig } from './charrig.js';
+import { buildDriverRig } from './charrig.js';
 import { Retargeter } from './models.js';
 import { LIB, loadAnimLib, ClipRig, AnimRetarget, clipMeta } from './anim.js';
 import { kitFor, chooseMove } from './styles.js';
@@ -53,7 +53,7 @@ export class Fighter {
     this.camYaw = 0;          // extra yaw used when facing the camera (portraits)
     this.warmSeed = rand() * 20;
 
-    buildCharacterRig(this);  // driver groups (+ primitive meshes as fallback)
+    buildDriverRig(this);     // invisible driver groups (procedural fallback)
     this.targets = {};
     this.rate = 14;
     this.retarget = null;
@@ -67,7 +67,6 @@ export class Fighter {
   attachModel(model) {
     const L = this.def.look || {};
     this.root.scale.setScalar(1);
-    this.root.traverse(o => { if (o.isMesh) o.visible = false; }); // hide primitives
     const rest = [];
     model.traverse(o => { if (o.isBone) rest.push([o, o.position.clone(), o.quaternion.clone()]); });
     this.retarget = new Retargeter(model, this, 1.92 * (L.h || 1));
@@ -75,9 +74,13 @@ export class Fighter {
     this.mats = [];
     model.traverse(o => { if (o.isMesh) this.mats.push(o.material); });
     this.hasModel = true;
-    const enable = () => { if (this.retarget && this.retarget.model === model && !this.rig) this.enableClips(model, rest); };
+    // stay hidden until the motion clips can drive the model (no T-pose or
+    // placeholder flash); without the library, fall back to procedural poses
+    const box = this.retarget.container;
+    box.visible = false;
+    const enable = () => { if (this.retarget && this.retarget.model === model && !this.rig) this.enableClips(model, rest); box.visible = true; };
     if (LIB) enable();
-    else loadAnimLib().then(enable).catch(err => console.warn('animation library failed to load', err));
+    else loadAnimLib().then(enable).catch(err => { console.warn('animation library failed to load', err); box.visible = true; });
   }
 
   // ---------------------------------------------------------------- clips
@@ -101,6 +104,56 @@ export class Fighter {
     const m = clipMeta(id);
     this.animLen = len != null ? len : loop ? Infinity : (m.dur - start) / ts;
     return true;
+  }
+
+  // Where the striking limb is at a clip's impact frame, in this fighter's
+  // frame: { fwd, up } in metres from the root (fwd along facing). Measured
+  // once per clip by posing a probe rig on this very model, so spacing
+  // follows each caricature's own arm and leg lengths.
+  strikeGeom(id) {
+    const cache = this._geom || (this._geom = new Map());
+    if (cache.has(id)) return cache.get(id);
+    const m = clipMeta(id);
+    if (!this.art || !m || m.impact == null) return null;
+    const probe = this._probe || (this._probe = new ClipRig());
+    probe.play(id, { fade: 0, start: m.impact });
+    probe.update(0);
+    const art = this.art, saved = this._saved || (this._saved = []);
+    let i = 0;
+    for (const b of art.restLocal.keys()) (saved[i++] || (saved[i - 1] = new THREE.Quaternion())).copy(b.quaternion);
+    const hipsPos = art.hips.position.clone();
+    art.apply(false, probe);
+    this.root.updateMatrixWorld(true);
+    const limb = m.limb || 'RH', side = limb[0] === 'L' ? 'Left' : 'Right';
+    const pts = limb === 'HEAD' ? ['Head'] : {
+      H: [side + 'Hand'], F: [side + 'Foot', side + 'ToeBase'], K: [side + 'Leg'], E: [side + 'ForeArm'],
+    }[limb[1]] || [side + 'Hand'];
+    const v = new THREE.Vector3();
+    let best = null;
+    for (const n of pts) {
+      if (!this.retarget.boneWorld(n, v)) continue;
+      this.root.worldToLocal(v);
+      if (!best || v.z > best.fwd) best = { fwd: v.z, up: v.y };
+    }
+    if (best) best.fwd += limb === 'HEAD' ? 0.1 : limb[1] === 'H' ? 0.06 : 0.02;   // fist/forehead surface
+    i = 0;
+    for (const b of art.restLocal.keys()) b.quaternion.copy(saved[i++]);
+    art.hips.position.copy(hipsPos);
+    this.root.updateMatrixWorld(true);
+    cache.set(id, best);
+    return best;
+  }
+
+  // Half-depth of this body at a height (m): what a strike has to reach.
+  bodyDepth(up) {
+    const L = this.def.look || {}, H = 1.92 * (L.h || 1);
+    if (up > H * 0.8) return 0.11 * (L.h || 1);                               // head
+    if (up > H * 0.42) return (0.14 + (L.belly || 0) * 0.35) * (L.bulk || 1); // torso
+    return 0.09 * (L.bulk || 1);                                               // legs
+  }
+  hitZone(up) {
+    const H = 1.92 * ((this.def.look || {}).h || 1);
+    return up > H * 0.74 ? 'head' : 'body';
   }
 
   // Hit reaction. level: 0 light, 1 medium, 2 big; zone: 'head' | 'body'.

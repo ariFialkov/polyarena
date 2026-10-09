@@ -21,12 +21,28 @@ export const SPECIALS = ['fireball', 'teleport', 'flyingkick', 'shockwave'];
 const MELEE = 0.92;     // root-to-root distance for landed hand/foot strikes
 const MIN_SEP = 0.6;
 const KB_DECAY = 5.5;
-const BODY_R = 0.2;     // strike target depth in front of the victim's root
+const BODY_R = 0.2;     // strike target depth in front of the victim's root (fallback)
+
+// How far in front of the attacker's root a clip's blow lands (m), from the
+// limb position measured on the attacker's own model at the impact frame,
+// plus the victim's body depth at that height.
+function reachOf(f, o, clip) {
+  const g = f.strikeGeom(clip);
+  if (g) return { reach: g.fwd + o.bodyDepth(g.up), g };
+  const m = clipMeta(clip);
+  return { reach: Math.max(30, m.reach || 50) * f.k + BODY_R, g: null };
+}
 // specials connect this long after their scripted moment (main.js applies
 // their damage then): fireballs release on time and fly, kicks/slams land late
 const SPECIAL_DELAY = { fireball: 0, flyingkick: 0.3, shockwave: 0.33 };
 const SPECIAL_STATE = { fireball: 'cast', flyingkick: 'flying', shockwave: 'slam' };
 const HEAVY = new Set(['backfist', 'roundhouse', 'spinkick', 'palm', 'elbow']);
+
+// walk/idle with hysteresis (so the stance doesn't flicker between clips)
+const moveState = f => {
+  const v = Math.abs(f.vx);
+  return v > 0.9 ? 'walk' : v < 0.45 ? 'idle' : f.anim === 'walk' ? 'walk' : 'idle';
+};
 
 // impulse that travels `dist` in roughly `T` seconds under KB_DECAY
 const impulseFor = (dist, T) => dist * KB_DECAY / (1 - Math.exp(-KB_DECAY * T));
@@ -35,12 +51,17 @@ export class Arena {
   constructor(canvas) {
     this.cv = canvas;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    // resolution adapts to the device (see adaptResolution): start at up to
+    // 1.5x and settle where the frame rate holds
+    this.maxPR = Math.min(2, window.devicePixelRatio || 1);
+    this.pr = Math.min(1.5, this.maxPR);
+    this.renderer.setPixelRatio(this.pr);
+    this.perf = { t: 0, n: 0, slow: 0, fast: 0 };
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(0x10141f, 14, 34);
@@ -86,6 +107,14 @@ export class Arena {
     this.flash = 0; this.redFlash = 0;
 
     this.particles = new ParticlePool(this.scene, 700);
+    // projectile glow lights live permanently in the scene (dark when idle):
+    // adding/removing a light changes the light count, which makes three.js
+    // recompile every material: a visible hitch on each fireball
+    this.glows = [0, 1].map(() => {
+      const l = new THREE.PointLight(0xffffff, 0, 7, 1.8);
+      this.scene.add(l);
+      return l;
+    });
     this.resize();
   }
 
@@ -141,12 +170,25 @@ export class Arena {
     for (const f of this.fighters) {
       if (!f.def.model) continue;
       instantiateModel(f.def.model).then(m => {
-        if (token === this.matchToken) f.attachModel(m);
+        if (token !== this.matchToken) return;
+        f.attachModel(m);
+        this.prewarm();
       }).catch(err => console.warn('model load failed', f.def.model, err));
     }
   }
 
   fighter(i) { return this.fighters[i]; }
+
+  // Compile shaders for everything in the scene ahead of its first draw
+  // (otherwise the first frame a material appears stalls on compilation).
+  prewarm() {
+    if (!this.renderer.compileAsync) return;
+    const hidden = [];
+    this.scene.traverse(o => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    const done = this.renderer.compileAsync(this.scene, this.camera);
+    for (const o of hidden) o.visible = false;
+    done.catch(() => {});
+  }
 
   later(ms, fn) { this.timers.push(setTimeout(fn, ms)); }
 
@@ -203,7 +245,10 @@ export class Arena {
       if (tImp <= p.impact + 1e-3 && !GROUNDED.has(f.anim) && !FROZEN.has(f.anim)) this.launch(p, f, o, tImp);
     } else if (f.plan === p && f.rig.cur && f.rig.id === p.clip && f.anim !== 'hit' && f.anim !== 'hurt') {
       const rem = p.impact - f.rig.time;
-      if (rem > 0.01 && tImp > 0.01) f.rig.timeScale = clamp(rem / tImp, 0.5, 3);
+      if (rem > 0.01 && tImp > 0.01) {
+        const want = clamp(rem / tImp, 0.5, 3);
+        f.rig.timeScale = f.rig.cur.timeScale + (want - f.rig.cur.timeScale) * 0.35;
+      }
     }
     // the defender gets the guard up just before a blocked strike lands
     if (ev.type === 'miss' && p.launched && !p.guarded && tImp < 0.2 && o.rig && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) {
@@ -231,11 +276,11 @@ export class Arena {
     if (!m) return null;
     f.recent = [clip, ...f.recent].slice(0, 3);
     const k = f.k;
-    const reach = Math.max(30, m.reach || 50) * k + BODY_R;
+    const { reach, g } = reachOf(f, o, clip);
     const travel = Math.max(0, m.travel || 0) * k;
     const range = ev.strike === 'fireball' || ev.strike === 'shockwave' ? 0
       : clamp(reach + (travel > 0.12 ? travel : 0), MIN_SEP + 0.05, 4.2);
-    return { ev, clip, impact, delay, reach, travel, range, special, kind: ev.strike, launched: false };
+    return { ev, clip, impact, delay, reach, g, travel, range, special, kind: ev.strike, launched: false };
   }
 
   launch(p, f, o, tImp) {
@@ -265,7 +310,7 @@ export class Arena {
     impact = impact || m.impact;
     const start = Math.max(0, impact - lead);
     const dist = Math.abs(o.x - f.x);
-    const reach = Math.max(30, m.reach || 50) * f.k + BODY_R;
+    const { reach } = reachOf(f, o, clip);
     const travel = Math.max(0, m.travel || 0) * f.k;
     const rm = travel > 0.12 ? clamp((dist - reach) / travel, 0, 1.3) : 0;
     f.act(clip, { state, start, rm, fade: 0.06, len: impact - start + 0.45 });
@@ -273,13 +318,14 @@ export class Arena {
   }
 
   // Land a clip strike on the victim: reaction by height and weight.
-  reactTo(o, m, { hurt = false, heavy = false, ko = false, kd = false } = {}) {
+  // g: the attacker's strike geometry (where the blow lands), if known
+  reactTo(o, g, { hurt = false, heavy = false, ko = false, kd = false } = {}) {
     if (GROUNDED.has(o.anim)) return;
     if (kd) return this.floor(o);
     if (!o.rig) { o.play(hurt ? 'hurt' : 'hit'); return; }
     if (o.rig.meta && o.rig.meta.cat === 'ko') return;
-    if (ko) { o.fall(m && m.height < 50 ? 'ko_back' : null); return; }
-    const zone = m && m.height < 125 ? 'body' : 'head';
+    if (ko) { o.fall(g && g.up < 0.5 ? 'ko_back' : null); return; }
+    const zone = g ? o.hitZone(g.up) : 'head';
     o.react(hurt ? 2 : heavy ? 1 : 0, zone);
   }
 
@@ -340,15 +386,14 @@ export class Arena {
       f.recent = [clip, ...f.recent].slice(0, 3);
       lead = this.launchNow(f, o, clip, 0.12);
     }
-    const m = clipMeta(clip);
     // no root travel and out of reach? close the gap so the hit connects
-    const reach = Math.max(30, m.reach || 50) * f.k + BODY_R;
-    if (landed && dist > reach + 0.35 && !(p && p.rm > 0)) f.kb += dir * impulseFor(dist - reach, Math.max(0.08, lead));
+    const { reach, g } = p ? p : reachOf(f, o, clip);
+    if (landed && dist > reach + 0.2 && !(p && p.rm > 0)) f.kb += dir * impulseFor(dist - reach, Math.max(0.08, lead));
     const hit = () => {
       if (landed) {
         const kd = !!(ev && ev.kd);
-        this.reactTo(o, m, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko', kd });
-        this.impactFx(o.idx, hurt || kd);
+        this.reactTo(o, g, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko', kd });
+        this.impactFx(o.idx, hurt || kd, f.limbWorld(clipMeta(clip).limb));
       } else {
         if (!(p && p.guarded) && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) o.guard();
         this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
@@ -383,16 +428,21 @@ export class Arena {
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false })
       );
       core.add(shell);
-      const light = new THREE.PointLight(color, 18, 7, 1.8);
+      const light = this.glows.find(l => !l.busy) || this.glows[0];
+      light.busy = true;
+      light.color.copy(color);
+      light.intensity = 18;
       core.position.copy(from);
-      this.scene.add(core, light);
+      this.scene.add(core);
       const dist = Math.abs(o.x - f.x);
       this.projectiles.push({ mesh: core, light, from, victim: o, caster: f, t: 0, dur: flight || clamp(dist / 10, 0.18, 0.6), color: color.getHex() });
     });
   }
 
   removeProjectile(p) {
-    this.scene.remove(p.mesh, p.light);
+    this.scene.remove(p.mesh);
+    p.light.intensity = 0;
+    p.light.busy = false;
     p.mesh.traverse(m => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
   }
 
@@ -414,7 +464,7 @@ export class Arena {
       if (f.rig) {
         const clip = f.kit.special.clip;
         const lead = this.launchNow(f, o, clip, 0.13, 'strike', f.kit.special.impact);
-        this.later(lead * 1000, () => { this.reactTo(o, clipMeta(clip), { hurt: true }); this.impactFx(o.idx, true); sfx.bigHit(); });
+        this.later(lead * 1000, () => { this.reactTo(o, f.strikeGeom(clip), { hurt: true }); this.impactFx(o.idx, true); sfx.bigHit(); });
         return;
       }
       f.startStrike('backfist');
@@ -431,7 +481,7 @@ export class Arena {
       sfx.whoosh();
       this.director.kick({ fov: 2.5 });
       this.later(lead * 1000, () => {
-        this.reactTo(o, clipMeta(sp.clip), { hurt: true });
+        this.reactTo(o, f.strikeGeom(sp.clip), { hurt: true });
         this.impactFx(o.idx, true); sfx.bigHit();
       });
       return;
@@ -476,11 +526,12 @@ export class Arena {
     this.rings.push({ m, t: 0 });
   }
 
-  impactFx(victimIdx, hurt) {
+  // at: where the blow lands (the striking limb), defaults to the face
+  impactFx(victimIdx, hurt, at = null) {
     const v = this.fighters[victimIdx], a = this.fighters[1 - victimIdx];
     if (!v || !a) return;
-    const p = v.headWorld();
-    p.y -= 0.15;
+    const p = at || v.headWorld();
+    if (!at) p.y -= 0.15;
     this.particles.burst(p, hurt ? 20 : 9, {
       color: hurt ? 0xff5a3c : 0xffd75e, speed: hurt ? 3.6 : 2,
       life: 0.5, gravity: 5,
@@ -488,7 +539,9 @@ export class Arena {
     const away = Math.sign(v.x - a.x) || 1;
     v.kb += away * (hurt ? 5.6 : 2.7);
     if (hurt && rand() < 0.35) v.vy = 3.2;
-    this.hitstop = hurt ? 0.075 : 0.03;
+    // a brief heavy-hit freeze-frame (light hits flow through: with
+    // motion-captured animation a freeze on every jab reads as stutter)
+    if (hurt) this.hitstop = 0.06;
     this.director.kick({
       fov: hurt ? -3.2 : -1.2,
       roll: (hurt ? 0.05 : 0.018) * (rand() < 0.5 ? -1 : 1),
@@ -554,7 +607,7 @@ export class Arena {
 
   update(dt) {
     let sdt = dt * this.slowmo;
-    if (this.hitstop > 0) { this.hitstop -= dt; sdt *= 0.04; }
+    if (this.hitstop > 0) { this.hitstop -= dt; sdt *= 0.2; }
     this.time += sdt;
     this.clock += dt;
     const [a, b] = this.fighters;
@@ -636,7 +689,7 @@ export class Arena {
       const v = Math.abs(dx) > 0.08 ? Math.sign(dx) * Math.min(4.2, Math.abs(dx) * 3) : 0;
       this.integrate(f, dt, v, 8);
       f.facing = i === 0 ? 1 : -1;
-      if (!BUSY.has(f.anim) && f.anim !== 'taunt') f.anim = Math.abs(f.vx) > 0.4 ? 'walk' : 'idle';
+      if (!BUSY.has(f.anim) && f.anim !== 'taunt') f.anim = moveState(f);
     });
   }
 
@@ -716,7 +769,7 @@ export class Arena {
         if (f.intent === 'retreat') f.intentT = 0;
       }
       if (f.y <= 0 && !BUSY.has(f.anim) && !FROZEN.has(f.anim)) {
-        f.anim = Math.abs(f.vx) > 0.7 ? 'walk' : 'idle';
+        f.anim = moveState(f);
       }
     }
     // no overlapping
@@ -788,7 +841,31 @@ export class Arena {
 
   // ------------------------------ render ------------------------------
 
+  // Dynamic resolution: drop the pixel ratio while frames run slow, raise it
+  // back when there is headroom (fill rate is the main cost on phones and
+  // high-DPI screens).
+  adaptResolution(dt) {
+    const P = this.perf;
+    if (dt > 0.25) return;                       // tab switch / hiccup
+    P.t += dt; P.n++;
+    if (P.t < 1) return;
+    const avg = P.t / P.n;
+    P.t = 0; P.n = 0;
+    P.slow = avg > 1 / 50 ? P.slow + 1 : 0;
+    P.fast = avg < 1 / 58 ? P.fast + 1 : 0;
+    let pr = this.pr;
+    if (P.slow >= 1 && pr > 0.75) pr = Math.max(0.75, pr * 0.85);
+    else if (P.fast >= 4 && pr < this.maxPR) { pr = Math.min(this.maxPR, pr * 1.1); P.fast = 0; }
+    if (Math.abs(pr - this.pr) > 0.01) {
+      this.pr = pr;
+      this.renderer.setPixelRatio(pr);
+      this.renderer.setSize(this.W, this.H, false);
+    }
+    this.fps = 1 / avg;
+  }
+
   draw(dt = 1 / 60) {
+    this.adaptResolution(dt);
     const [a, b] = this.fighters;
     this.director.update(dt * (this.hitstop > 0 ? 0.3 : 1), this.time, this.fighters, this.aspect);
     // fog and key light follow the camera/action

@@ -167,7 +167,8 @@ export class ClipRig {
 const strip = n => n.replace(/^(mixamorig|smartrig)[:_]?/i, '');
 const swap = n => n.startsWith('Left') ? 'Right' + n.slice(4) : n.startsWith('Right') ? 'Left' + n.slice(5) : n;
 const mirrorQ = (q, out = new THREE.Quaternion()) => out.set(q.x, -q.y, -q.z, q.w);
-const CHILD = { Hips: 'Spine', Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head' };
+const CHILD = { Hips: 'Spine', Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head', Head: 'HeadTop_End' };
+const AXIAL = new Set(['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head']);
 
 export class AnimRetarget {
   // rig: ClipRig; model: the fighter's model (rest pose); container: the
@@ -212,8 +213,12 @@ export class AnimRetarget {
         if (!Qs) return null;
         if (mir) { Qs = mirrorQ(Qs); ds = ds && new THREE.Vector3(-ds.x, ds.y, ds.z); }
         const R = new THREE.Quaternion();
-        if (dt && ds) R.setFromUnitVectors(dt, ds);
-        return { bone: src[sn], mir, QsInv: Qs.clone().invert(), RQt: R.multiply(Qt) };
+        // limbs: align rest directions (arm/leg angles differ between rigs).
+        // Axial chain: both rigs stand upright in their rest poses, so keep
+        // the model's own posture. Aiming a head at its first child bone
+        // tilts it (many heads have a facial bone like 'headfront' first).
+        if (dt && ds && !AXIAL.has(n)) R.setFromUnitVectors(dt, ds);
+        return { bone: src[sn], sn, mir, QsInv: Qs.clone().invert(), RQt: R.multiply(Qt) };
       };
       this.entries.set(b, { n: mk(n, false), m: mk(swap(n), true) });
     }
@@ -242,8 +247,10 @@ export class AnimRetarget {
   }
 
   // Pose the model from the rig (call after rig.update and after the
-  // character's root transform is current).
-  apply(mirror = false) {
+  // character's root transform is current). `rig` may be another ClipRig
+  // (a measuring probe) instead of the one this retarget was built for.
+  apply(mirror = false, rig = this.rig) {
+    const own = rig === this.rig;
     const cQ = this.container.getWorldQuaternion(this._w);
     const qs = this._q;
     const visit = (bone, parentWQ) => {
@@ -251,7 +258,7 @@ export class AnimRetarget {
       const v = e && (mirror ? e.m : e.n);
       const wq = this.outQ(bone);
       if (v) {
-        qs.setFromRotationMatrix(v.bone.matrixWorld);   // rig root is unscaled
+        qs.setFromRotationMatrix((own ? v.bone : rig.bones[v.sn]).matrixWorld);   // rig root is unscaled
         if (v.mir) mirrorQ(qs, qs);
         wq.copy(cQ).multiply(qs).multiply(v.QsInv).multiply(v.RQt);
         bone.quaternion.copy(parentWQ).invert().multiply(wq);
@@ -264,7 +271,7 @@ export class AnimRetarget {
     visit(this.hips, this.hips.parent.getWorldQuaternion(this._p));
 
     // hips height follows the clip (crouches, falls); travel is root motion
-    const dy = this.rig.hipsY ? (this.rig.bones.Hips.position.y - this.srcHipsRestY) * this.scale : 0;
+    const dy = rig.hipsY ? (rig.bones.Hips.position.y - this.srcHipsRestY) * this.scale : 0;
     const p = this._v.copy(this.hipsRest);
     p.y += dy;
     this.container.localToWorld(p);

@@ -67,10 +67,11 @@ export class PortraitStudio {
 
   render(dt) {
     if (!this.slots.size) return;
-    // on a tight frame budget, refresh cutouts at half rate
-    this.skip = !this.skip && dt > 1 / 45;
-    if (this.skip) { this.carry = (this.carry || 0) + dt; return; }
-    dt += this.carry || 0; this.carry = 0;
+    // cutouts refresh at up to 30 fps: each one is copied out of the WebGL
+    // canvas, which stalls the GPU pipeline, so do it as rarely as looks smooth
+    this.carry = (this.carry || 0) + dt;
+    if (this.carry < 1 / 30) return;
+    dt = Math.min(0.1, this.carry); this.carry = 0;
     const r = this.r;
     const pr = r.getPixelRatio();
     const mainW = r.domElement.width, mainH = r.domElement.height;
@@ -86,7 +87,7 @@ export class PortraitStudio {
       f.update(dt);
 
       // size the slot canvas to its layout box
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      const dpr = Math.min(1.25, window.devicePixelRatio || 1);
       const tw = Math.max(2, Math.round(s.canvas.clientWidth * dpr));
       const th = Math.max(2, Math.round(s.canvas.clientHeight * dpr));
       if (s.canvas.width !== tw || s.canvas.height !== th) { s.canvas.width = tw; s.canvas.height = th; }
