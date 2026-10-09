@@ -206,6 +206,10 @@
     "file": "Takedowns/Double Leg Takedown - Victim.fbx",
     "cat": "ko"
   },
+  "get_up": {
+    "file": "Getting Up.fbx",
+    "cat": "getup"
+  },
   "jab": {
     "file": "Punches/Punching-3.fbx",
     "cat": "strike",

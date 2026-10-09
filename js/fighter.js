@@ -23,8 +23,14 @@ export const DUR = {
   strike: 0.34, hit: 0.3, hurt: 0.5, block: 0.4, down: 0.9,
   cast: 0.5, flying: 0.5, slam: 0.65, dash: 0.26, backdash: 0.3, land: 0.16, taunt: 1.6,
 };
-export const BUSY = new Set(['strike', 'hit', 'hurt', 'block', 'cast', 'flying', 'slam', 'dash', 'backdash', 'land', 'taunt']);
-export const FROZEN = new Set(['down', 'win', 'launched']);
+export const BUSY = new Set(['strike', 'hit', 'hurt', 'block', 'cast', 'flying', 'slam', 'dash', 'backdash', 'land', 'taunt', 'rise']);
+export const FROZEN = new Set(['down', 'win', 'launched', 'floored']);
+// knocked down (and getting up): can't be hit or attack
+export const GROUNDED = new Set(['down', 'floored', 'rise', 'launched']);
+
+// knockdown falls (all land on the back, head behind, the pose the get-up
+// clip starts from) and when each body reaches the floor
+const KD_FALLS = { ko_back: 1.3, ko_spin: 1.35, ko_crumple: 0.85 };
 
 export class Fighter {
   constructor(def, idx) {
@@ -115,7 +121,27 @@ export class Fighter {
   // Knockout fall (root motion carries the body back).
   fall(id) {
     id = id || pick(['ko_back', 'ko_spin', 'ko_crumple', 'ko_back', 'ko_kneel']);
+    this.getUpAt = null;
     this.act(id, { state: 'down', rm: 1, fade: 0.08, len: Infinity });
+  }
+
+  // Knockdown: drop, a beat on the canvas, then back up (see update()).
+  knockdown() {
+    if (!this.rig) {
+      this.play('down');
+      this.getUpAt = 1.7;
+      return;
+    }
+    const id = pick(Object.keys(KD_FALLS));
+    this.act(id, { state: 'floored', rm: 1, fade: 0.08, len: Infinity });
+    this.getUpAt = KD_FALLS[id] + 0.45;
+  }
+
+  getUp() {
+    this.getUpAt = null;
+    if (!this.rig) { this.play('idle'); return; }
+    const ts = 1.15;
+    this.act('get_up', { state: 'rise', ts, fade: 0.35, len: clipMeta('get_up').dur / ts - 0.12 });
   }
 
   // Map a state change to a clip (states the arena doesn't drive with act()).
@@ -138,6 +164,7 @@ export class Fighter {
       case 'hurt': this.react(2); break;
       case 'block': this.guard(); break;
       case 'down':
+        this.getUpAt = null;
         if (!(r.meta && r.meta.cat === 'ko')) this.fall();
         this.anim = 'down';
         break;
@@ -271,6 +298,7 @@ export class Fighter {
       if (this.dissolve >= 1) this.root.visible = false; // shadow maps ignore opacity
     }
     if (BUSY.has(this.anim) && this.animT > (this.animLen != null ? this.animLen : DUR[this.anim])) this.play('idle');
+    if (this.getUpAt != null && this.animT > this.getUpAt && (this.anim === 'floored' || this.anim === 'down')) this.getUp();
 
     if (this.rig) this.drive(dt);
     else {

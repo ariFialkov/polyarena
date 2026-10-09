@@ -525,6 +525,7 @@ function processRoundEvents() {
           sfx.hit();
           landHit(ev);
         }
+        if (ev.kd) hud.announce('KNOCKDOWN!', 'gold', 1300);
         S.strikes++;
         updateStrikeMeter();
         break;

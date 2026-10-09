@@ -10,7 +10,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { clamp, rand, randRange, pick } from './util.js';
 import { buildStage, skyTexture } from './stages.js';
-import { Fighter, BUSY, FROZEN } from './fighter.js';
+import { Fighter, BUSY, FROZEN, GROUNDED } from './fighter.js';
 import { instantiateModel } from './models.js';
 import { CameraDirector } from './camera.js';
 import { clipMeta } from './anim.js';
@@ -200,13 +200,13 @@ export class Arena {
     if (p.range) this.antic.range = p.range;
     const tImp = inSec + p.delay;
     if (!p.launched) {
-      if (tImp <= p.impact + 1e-3 && !FROZEN.has(f.anim)) this.launch(p, f, o, tImp);
+      if (tImp <= p.impact + 1e-3 && !GROUNDED.has(f.anim) && !FROZEN.has(f.anim)) this.launch(p, f, o, tImp);
     } else if (f.plan === p && f.rig.cur && f.rig.id === p.clip && f.anim !== 'hit' && f.anim !== 'hurt') {
       const rem = p.impact - f.rig.time;
       if (rem > 0.01 && tImp > 0.01) f.rig.timeScale = clamp(rem / tImp, 0.5, 3);
     }
     // the defender gets the guard up just before a blocked strike lands
-    if (ev.type === 'miss' && p.launched && !p.guarded && tImp < 0.2 && o.rig && !FROZEN.has(o.anim)) {
+    if (ev.type === 'miss' && p.launched && !p.guarded && tImp < 0.2 && o.rig && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) {
       p.guarded = true;
       o.guard();
     }
@@ -224,7 +224,7 @@ export class Arena {
       // an opener has room to lunge or leap in; mid-combo hits stay compact
       const opener = this.clock - this.lastHitAt + inSec > 1.1;
       const type = ev.type === 'ko' ? 'uppercut' : ev.strike;
-      clip = chooseMove(f.kit, type, { window: inSec, opener: opener || ev.type === 'ko', heavy: ev.type === 'hurt', recent: f.recent });
+      clip = chooseMove(f.kit, type, { window: inSec, opener: opener || ev.type === 'ko', heavy: ev.type === 'hurt' || !!ev.kd, recent: f.recent });
       impact = clipMeta(clip).impact;
     }
     const m = clipMeta(clip);
@@ -273,9 +273,11 @@ export class Arena {
   }
 
   // Land a clip strike on the victim: reaction by height and weight.
-  reactTo(o, m, { hurt = false, heavy = false, ko = false } = {}) {
+  reactTo(o, m, { hurt = false, heavy = false, ko = false, kd = false } = {}) {
+    if (GROUNDED.has(o.anim)) return;
+    if (kd) return this.floor(o);
     if (!o.rig) { o.play(hurt ? 'hurt' : 'hit'); return; }
-    if (o.anim === 'down' || (o.rig.meta && o.rig.meta.cat === 'ko')) return;
+    if (o.rig.meta && o.rig.meta.cat === 'ko') return;
     if (ko) { o.fall(m && m.height < 50 ? 'ko_back' : null); return; }
     const zone = m && m.height < 125 ? 'body' : 'head';
     o.react(hurt ? 2 : heavy ? 1 : 0, zone);
@@ -303,7 +305,9 @@ export class Arena {
     if (dist > MELEE + 0.45) f.kb += dir * impulseFor(dist - MELEE, 0.12);
 
     f.startStrike(type);
-    if (landed) {
+    if (landed && ev && ev.kd) {
+      this.later(110, () => { this.impactFx(1 - by, true); this.floor(o); });
+    } else if (landed) {
       o.play(hurt ? 'hurt' : 'hit');
       o.animT = -0.12;
       this.later(110, () => this.impactFx(1 - by, hurt));
@@ -342,10 +346,11 @@ export class Arena {
     if (landed && dist > reach + 0.35 && !(p && p.rm > 0)) f.kb += dir * impulseFor(dist - reach, Math.max(0.08, lead));
     const hit = () => {
       if (landed) {
-        this.reactTo(o, m, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko' });
-        this.impactFx(o.idx, hurt);
+        const kd = !!(ev && ev.kd);
+        this.reactTo(o, m, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko', kd });
+        this.impactFx(o.idx, hurt || kd);
       } else {
-        if (!(p && p.guarded) && !FROZEN.has(o.anim)) o.guard();
+        if (!(p && p.guarded) && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) o.guard();
         this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
         o.kb += -dir * 1.6;
       }
@@ -490,6 +495,28 @@ export class Arena {
       shake: hurt ? 0.09 : 0.03,
     });
     if (hurt) this.flash = Math.max(this.flash, 0.2);
+  }
+
+  // Knockdown (not a KO): the victim drops and gets back up; the attacker
+  // stands over them and plays to the crowd.
+  floor(v) {
+    const a = this.fighters[1 - v.idx];
+    v.knockdown();
+    v.kb += Math.sign(v.x - a.x) * (v.rig ? 1 : 4);
+    this.flash = Math.max(this.flash, 0.5);
+    this.slowmo = 0.35;
+    this.later(650, () => { this.slowmo = 1; });
+    this.director.kick({ shake: 0.18, fov: -3, roll: 0.05 * (rand() < 0.5 ? -1 : 1) });
+    sfx.bigHit();
+    this.later(900, () => {
+      const p = new THREE.Vector3(v.x, 0.04, v.z);
+      this.spawnRing(p, 0xcabb99);
+      this.particles.burst(p, 22, { color: 0xb8a888, speed: 2.2, life: 0.6, gravity: 4, rise: 1 });
+      sfx.slam();
+    });
+    this.later(1500, () => {
+      if (this.mode === 'fight' && !BUSY.has(a.anim) && !FROZEN.has(a.anim) && !(this.antic && this.antic.by === a.idx && this.antic.inSec < 2.6)) a.play('taunt');
+    });
   }
 
   knockdown(loserIdx) {

@@ -7,7 +7,8 @@
 // standalone signature specials. Each fighter's counted strikes per round
 // match the outcome exactly, so strike-total markets stay honest. Every
 // landed event carries `dmg`, the HP fraction it removes, so health bars
-// drop in hits and land exactly on the scripted round-end values.
+// drop in hits and land exactly on the scripted round-end values. Some
+// rounds include a knockdown (`kd`): the fighter is dropped and gets back up.
 
 import { rand, randRange, randInt, pick, clamp } from './util.js';
 import { ROUND_SECS } from './engine.js';
@@ -19,7 +20,10 @@ const ENDERS = ['roundhouse', 'spinkick', 'uppercut', 'backfist', 'sweep'];
 const HIT_GAP = [2.6, 3.6];       // game secs between hits in a combo (~0.43-0.6 s real,
                                   // room for each motion-captured strike to land)
 const KO_RESERVE = 12;            // game secs kept clear before the KO finisher
-const WEIGHT = { special: 2.6, heavy: 1.45, normal: 1 };
+const KD_GAP = 26;                // game secs kept clear after a knockdown (~4.3 s real:
+                                  // the fall, a beat on the canvas, the get-up)
+const KD_CHANCE = [0.1, 0.8];     // per round: base + per unit of HP the victim loses
+const WEIGHT = { special: 2.6, knockdown: 2.4, heavy: 1.45, normal: 1 };
 
 export function buildScript(outcome, A, B, hp) {
   const rounds = [];
@@ -36,6 +40,7 @@ export function buildScript(outcome, A, B, hp) {
     const t0 = Math.min(4, roundLen * 0.08);
     const t1 = Math.min(Math.max(t0 + 0.5, roundLen - reserve), roundLen * 0.85);
     const exchanges = makeExchanges([sA, sB], defs);
+    if (hp) markKnockdown(exchanges, hp.start[r - 1], hp.end[r - 1]);
     placeExchanges(events, exchanges, t0, t1);
     for (const e of events) e.t = clamp(e.t, Math.min(0.2, roundLen * 0.05), t1);
 
@@ -50,6 +55,12 @@ export function buildScript(outcome, A, B, hp) {
     }
 
     events.sort((a, b) => a.t - b.t);
+    // a knockdown needs the floor to itself until the fighter is back up
+    events.forEach((e, i) => {
+      if (!e.kd) return;
+      const next = events[i + 1];
+      if (next && next.t - e.t < KD_GAP) delete e.kd;
+    });
     if (hp) assignDamage(events, hp.start[r - 1], hp.end[r - 1], isEndRound);
     rounds.push({ round: r, events, endTime: roundLen, isEndRound });
   }
@@ -102,18 +113,40 @@ function makeExchanges(counts, defs) {
   return list.sort(() => rand() - 0.5);
 }
 
+// Knockdowns (presentation only, the outcome is untouched): sometimes the
+// fighter taking the beating this round is dropped by the last blow of an
+// exchange, then gets back up.
+function markKnockdown(list, hpFrom, hpTo) {
+  const loss = [0, 1].map(v => Math.max(0, hpFrom[v] - hpTo[v]));
+  const victim = loss[0] >= loss[1] ? 0 : 1;
+  if (rand() > KD_CHANCE[0] + KD_CHANCE[1] * loss[victim]) return;
+  const ok = list.filter(ex => !ex.special && ex.hits.length >= 2 && ex.hits[ex.hits.length - 1].by === 1 - victim);
+  if (!ok.length) return;
+  const ex = pick(ok);
+  const last = ex.hits[ex.hits.length - 1];
+  last.kd = true;
+  last.strike = pick(['roundhouse', 'spinkick', 'backfist', 'uppercut', 'palm']);
+  ex.kd = true;
+}
+
 // Lay exchanges out across [t0, t1] with neutral gaps in between.
 function placeExchanges(events, list, t0, t1) {
   let gap = HIT_GAP;
   const durOf = ex => ex.special ? 0 : (ex.hits.length - 1) * (gap[0] + gap[1]) / 2;
-  let busy = list.reduce((s, ex) => s + durOf(ex), 0);
   const span = t1 - t0;
-  // compress combos if the round is crowded
-  if (busy > span * 0.6) {
-    const k = (span * 0.6) / busy;
-    gap = [HIT_GAP[0] * k, HIT_GAP[1] * k];
-    busy = span * 0.6;
+  // no room to stay down? then nobody goes down
+  if (list.some(ex => ex.kd) && span - list.reduce((s, ex) => s + durOf(ex), 0) < KD_GAP * 1.5) {
+    for (const ex of list) if (ex.kd) { delete ex.kd; for (const h of ex.hits) delete h.kd; }
   }
+  const kdBusy = list.filter(ex => ex.kd).length * KD_GAP;
+  let busy = list.reduce((s, ex) => s + durOf(ex), 0);
+  // compress combos if the round is crowded
+  if (busy + kdBusy > span * 0.6) {
+    const k = Math.max(0.1, (span * 0.6 - kdBusy) / busy);
+    gap = [HIT_GAP[0] * k, HIT_GAP[1] * k];
+    busy *= k;
+  }
+  busy += kdBusy;
   const weights = list.map(ex => (ex.special ? 1.6 : 1) * randRange(0.6, 1.4));
   const wsum = weights.reduce((s, w) => s + w, 0) || 1;
   const free = Math.max(0, span - busy);
@@ -123,11 +156,12 @@ function placeExchanges(events, list, t0, t1) {
     for (const h of ex.hits) {
       events.push({
         t, type: h.miss ? 'miss' : 'strike', by: h.by, strike: h.strike,
-        counted: !h.miss, specialName: h.specialName, ex: h.ex, counter: h.counter,
+        counted: !h.miss, specialName: h.specialName, ex: h.ex, counter: h.counter, kd: h.kd,
       });
       t += randRange(gap[0], gap[1]);
     }
     t -= gap[1];
+    if (ex.kd) t += KD_GAP;
   });
 }
 
@@ -140,7 +174,7 @@ function assignDamage(events, hpFrom, hpTo, isEndRound) {
     const finisher = hits.filter(e => e.type === 'hurt' || e.type === 'ko');
     const regular = hits.filter(e => e.type === 'strike');
     const finShare = isEndRound && finisher.length ? 0.38 : 0;
-    const w = e => e.specialName ? WEIGHT.special : HEAVY_TYPES.includes(e.strike) ? WEIGHT.heavy : WEIGHT.normal;
+    const w = e => e.specialName ? WEIGHT.special : e.kd ? WEIGHT.knockdown : HEAVY_TYPES.includes(e.strike) ? WEIGHT.heavy : WEIGHT.normal;
     const regW = regular.reduce((s, e) => s + w(e), 0) || 1;
     for (const e of regular) e.dmg = loss * (1 - finShare) * w(e) / regW;
     for (const e of finisher) e.dmg = loss * finShare / finisher.length;

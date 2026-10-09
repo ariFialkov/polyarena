@@ -3,6 +3,9 @@
 //   cd tools && npm install && npm run convert-anims
 //
 // Reads  assets/anims/src/Polyarena_Animations.zip   (Mixamo FBX, Without Skin)
+//        assets/anims/src/extra/*.fbx                 (clips added later; a
+//                                                      manifest "file" not in
+//                                                      the zip is looked up here)
 //        tools/anims.manifest.json                    (clip id -> file + hints)
 // Writes assets/anims/anims.bin   every clip sampled at 30 fps, in place:
 //                                 body bone rotations packed "smallest three"
@@ -58,8 +61,10 @@ function readZip(buf) {
 const manifest = JSON.parse(fs.readFileSync(path.join(here, 'anims.manifest.json'), 'utf8'));
 delete manifest._doc;
 const zip = readZip(fs.readFileSync(zipPath));
+const extraDir = path.join(root, 'assets/anims/src/extra');
+const clipFile = m => zip.get(m.file) || (fs.existsSync(path.join(extraDir, m.file)) ? fs.readFileSync(path.join(extraDir, m.file)) : null);
 for (const [id, m] of Object.entries(manifest)) {
-  if (!zip.has(m.file)) throw new Error(`${id}: "${m.file}" not found in the zip`);
+  if (!zip.has(m.file) && !fs.existsSync(path.join(extraDir, m.file))) throw new Error(`${id}: "${m.file}" not found in the zip or src/extra`);
 }
 
 const server = http.createServer((req, res) => {
@@ -71,7 +76,7 @@ const server = http.createServer((req, res) => {
     if (f.startsWith(threeDir) && fs.existsSync(f)) { body = fs.readFileSync(f); type = 'text/javascript'; }
   } else if (url.startsWith('/clip/')) {
     const m = manifest[url.slice(6)];
-    body = m && zip.get(m.file);
+    body = m && clipFile(m);
   }
   if (!body) { res.writeHead(404); return res.end(); }
   res.writeHead(200, { 'Content-Type': type });

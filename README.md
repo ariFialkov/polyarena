@@ -107,8 +107,8 @@ fallback while a model is downloading (or for any future fighter without one).
 
 ### Motion capture and fighting styles
 
-`assets/anims/` holds 122 Mixamo clips: 8 fight idles, steps, a jump, guards and
-dodges, 24 hit reactions, 5 knockouts, about 60 strikes, and the emotes used
+`assets/anims/` holds 123 Mixamo clips: 8 fight idles, steps, a jump, guards and
+dodges, 24 hit reactions, 5 knockouts and a get-up, about 60 strikes, and the emotes used
 for taunts, warm-ups and victories. The strikes cover jabs, crosses, hooks,
 haymakers, overhands, uppercuts, elbows, knees, headbutts, front, low, high,
 side, axe, crescent and spinning kicks, jump and flip kicks, butterfly kicks,
@@ -146,6 +146,12 @@ dropkicks, sweeps, throws, casts and a takedown.
 
   Reactions are picked by the strike's height (head or body) and weight.
   Blocked strikes raise the defender's guard just before the blow.
+- **Knockdowns** (`js/sim.js`): in some rounds, the last blow of an exchange
+  drops the fighter taking the beating. They hit the canvas and get back up,
+  while the attacker plays to the crowd with their taunt. This is
+  presentation only and never changes the drawn outcome. The choreography
+  keeps the floor clear for about 4 seconds, which covers the fall, a beat on
+  the canvas and the get-up.
 
 Rebuilding the library after changing the clip catalogue
 (`tools/anims.manifest.json`, which maps ids to source files, with an optional
@@ -156,7 +162,7 @@ cd tools && npm install && npm run convert-anims
 ```
 
 The converter reads `assets/anims/src/Polyarena_Animations.zip` (the source
-FBX clips) and runs a headless Chromium (Playwright) to load each FBX with
+FBX clips), plus any clip added later under `assets/anims/src/extra/`, and runs a headless Chromium (Playwright) to load each FBX with
 three.js. It finds every strike's impact frame, reach and travel, and packs
 30 fps quaternions as int16 "smallest three" into `anims.bin` (about 0.8 MB),
 with metadata in `anims.json`.
