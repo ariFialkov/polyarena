@@ -35,6 +35,23 @@ export function loadModel(key) {
   return cache.get(key);
 }
 
+// Background prefetch: fetch models one at a time behind whatever is on
+// screen, so they never compete for bandwidth with the current matchup.
+const pending = [];
+let prefetching = false;
+export function prefetchModels(keys) {
+  for (const k of keys) if (k && !cache.has(k) && !pending.includes(k)) pending.push(k);
+  if (prefetching) return;
+  prefetching = true;
+  const next = () => {
+    const k = pending.shift();
+    if (!k) { prefetching = false; return; }
+    if (cache.has(k)) return next();
+    loadModel(k).catch(() => {}).then(next);
+  };
+  next();
+}
+
 // A fresh, independently animatable copy (geometry and textures shared,
 // materials cloned so per-fighter fades don't leak between instances).
 export async function instantiateModel(key) {

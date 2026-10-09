@@ -224,6 +224,17 @@ body.fighting #lobbyShade { opacity: 0; }
   letter-spacing: 2px; white-space: nowrap; overflow: hidden;
   opacity: .9;
 }
+/* loading ring while the fighter's model streams in, then a reveal flash */
+.cut-wrap.loading::after {
+  content: ''; position: absolute; left: 50%; top: 48%; width: 54px; height: 54px; margin: -27px 0 0 -27px;
+  border-radius: 50%; border: 3px solid rgba(var(--sideRGB), .18); border-top-color: rgba(var(--sideRGB), .95);
+  box-shadow: 0 0 18px rgba(var(--sideRGB), .45); animation: cutSpin .8s linear infinite;
+}
+@keyframes cutSpin { to { transform: rotate(360deg); } }
+.cut-wrap.reveal canvas.cutout { animation: cutReveal .7s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes cutReveal {
+  from { opacity: 0; transform: translateX(-50%) translateY(14px) scale(.94); filter: brightness(2.4) drop-shadow(0 0 30px rgba(var(--sideRGB), 1)); }
+}
 canvas.cutout {
   position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   height: 108%; width: 100%; pointer-events: none;

@@ -74,12 +74,23 @@ offline) presented Mortal-Kombat style.
   wide when they spread out), with a slow orbit drift, zoom-punches and dutch-tilt
   kicks on impacts, hit-stop on heavy blows, and cinematic modes for the intro
   sweep, fighter close-ups, KO orbit, low fatality angle, lobby flyover and breaks.
-- **Movement director** (`js/render3d.js`): fighters dash, backdash, jump, vault
-  over each other out of corners, get knocked back, zone (fireball users keep
-  range) and reset spacing after every exchange, across stages ~3× wider than
-  before. Choreography decides *what* happens and *when*; `main.js` streams the
-  next scripted attack to the arena (`anticipate()`), which closes the distance
-  just in time so every hit visibly lands.
+- **Movement director** (`js/render3d.js`): footsies, not chaos. Fighters move
+  only in deliberate steps (about 1.1 m/s, with matching step clips) and
+  dashes. These are position tweens of an exact distance, never random
+  impulses.
+  - **Neutral:** both fighters settle at a home spacing around mid-stage
+    (fireball users keep longer range), with small rhythmic step-ins and
+    step-outs.
+  - **Attack:** the attacker moves in just in time to the planned move's launch
+    range. That range is the reach measured on its own model plus the move's
+    travel. The defender plants, and any gap left closes exactly by the impact
+    frame.
+  - **After an exchange:** both step back out to home spacing.
+  - **Knockback:** a short, consistent shove.
+  - **Round start:** both fighters reset to their own corners.
+
+  Choreography decides *what* happens and *when*. `main.js` streams the next
+  scripted attack to the arena (`anticipate()`).
 - **Choreography** (`js/sim.js`): landed strikes are grouped into exchanges (2-5 hit
   combos, sometimes answered by a counter, sometimes a blocked opener) and
   standalone signature specials, with neutral spacing between. Each fighter's
@@ -186,9 +197,25 @@ with metadata in `anims.json`.
    on the web), welds the triangle soup into indexed geometry, renames bones and
    writes `assets/models/<name>.glb` (~1 MB, texture at 1024²; `MAX_TEX=2048`
    for sharper).
-3. Add `model: '<name>'` to the fighter in `js/fighters.js`.
+3. Shrink it by about 30% with no visible change. This uses
+   KHR_mesh_quantization: int8 normals, uint16 UVs, uint8 skin weights and
+   joints.
+   ```sh
+   npm run quantize-models -- <name>
+   ```
+4. Add `model: '<name>'` to the fighter in `js/fighters.js`.
 
 ## Performance
+
+- **Loading order**:
+  - At startup the game fetches only the animation library and the current
+    matchup's two models. The corner cards show a neon loading ring, and each
+    fighter appears with a reveal flash.
+  - Once both are on screen, the remaining models download one at a time in
+    the background, so the next matchup is usually already cached.
+  - The fight intro waits for both fighters, so an invisible fighter never
+    walks out.
+  - Quantized models are about 0.7 MB each.
 
 - **Dynamic resolution** (`Arena.adaptResolution`): rendering starts at up to
   1.5× pixel ratio. It steps down while frames take longer than 20 ms

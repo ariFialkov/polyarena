@@ -44,6 +44,10 @@ const moveState = f => {
   return v > 0.9 ? 'walk' : v < 0.45 ? 'idle' : f.anim === 'walk' ? 'walk' : 'idle';
 };
 
+// how long a deliberate move of `ad` metres takes: a step (~1.1 m/s) up to a
+// metre, a dash beyond that
+const moveDur = ad => ad > 1.0 ? 0.24 + ad * 0.07 : 0.2 + ad * 0.55;
+
 // impulse that travels `dist` in roughly `T` seconds under KB_DECAY
 const impulseFor = (dist, T) => dist * KB_DECAY / (1 - Math.exp(-KB_DECAY * T));
 
@@ -173,8 +177,12 @@ export class Arena {
         if (token !== this.matchToken) return;
         f.attachModel(m);
         this.prewarm();
-      }).catch(err => console.warn('model load failed', f.def.model, err));
+      }).catch(err => { console.warn('model load failed', f.def.model, err); f.markReady(); });
     }
+    for (const f of this.fighters) if (!f.def.model) f.markReady();
+    // resolves when both fighters are on screen
+    this.ready = Promise.all(this.fighters.map(f => f.ready));
+    return this.ready;
   }
 
   fighter(i) { return this.fighters[i]; }
@@ -211,7 +219,7 @@ export class Arena {
       this.director.setMode('intro', { restart: true });
     }
     if (mode === 'fight') {
-      for (const f of this.fighters) { f.faceCam = false; f.intentT = 0; }
+      for (const f of this.fighters) { f.faceCam = false; f.move = null; f.restT = 0.3; }
       this.director.setMode('fight');
     }
   }
@@ -393,11 +401,11 @@ export class Arena {
       if (landed) {
         const kd = !!(ev && ev.kd);
         this.reactTo(o, g, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko', kd });
-        this.impactFx(o.idx, hurt || kd, f.limbWorld(clipMeta(clip).limb));
+        this.impactFx(o.idx, hurt || kd, f.limbWorld(g ? g.limb : clipMeta(clip).limb));
       } else {
         if (!(p && p.guarded) && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) o.guard();
         this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
-        o.kb += -dir * 1.6;
+        o.kb += -dir * 0.8;
       }
     };
     if (lead > 0.02) this.later(lead * 1000, hit); else hit();
@@ -509,8 +517,8 @@ export class Arena {
       this.later(90, () => {
         this.impactFx(o.idx, false);
         o.play('hurt');
-        o.vy = 4.5;
-        o.kb += Math.sign(o.x - f.x) * 6;
+        o.vy = o.rig ? 2.6 : 4.5;
+        o.kb += Math.sign(o.x - f.x) * (o.rig ? 3 : 6);
       });
     });
   }
@@ -537,8 +545,9 @@ export class Arena {
       life: 0.5, gravity: 5,
     });
     const away = Math.sign(v.x - a.x) || 1;
-    v.kb += away * (hurt ? 5.6 : 2.7);
-    if (hurt && rand() < 0.35) v.vy = 3.2;
+    // knockback: a short, consistent shove (~0.13 m light, ~0.36 m heavy)
+    v.kb += away * (v.rig ? (hurt ? 2 : 0.7) : (hurt ? 5.6 : 2.7));
+    if (hurt && !v.rig && rand() < 0.35) v.vy = 3.2;
     // a brief heavy-hit freeze-frame (light hits flow through: with
     // motion-captured animation a freeze on every jab reads as stutter)
     if (hurt) this.hitstop = 0.06;
@@ -693,86 +702,79 @@ export class Arena {
     });
   }
 
+  // ------------------------------ movement director ------------------------------
+  //
+  // Footsies, not chaos. Fighters move in deliberate steps and dashes:
+  // position tweens at a fixed pace with matching step clips (never random
+  // impulses or velocity chasing).
+  //   neutral  both settle at a home spacing around a centre pulled toward
+  //            mid-stage, with small rhythmic step-ins and step-outs
+  //   attack   when the next scripted attack is near, the attacker steps or
+  //            dashes to the planned clip's launch range (its measured
+  //            reach + travel); the defender plants
+  //   wind-up  whatever gap is left closes exactly by the impact frame
+  //   reset    after an exchange both step back out to home spacing
   updateMovement(dt) {
     const [a, b] = this.fighters;
+    const P = this.plan, A = this.antic;
+    const home = f => (this.portrait ? 1.55 : 1.9) + (f.def.special && f.def.special.kind === 'fireball' ? 0.6 : 0);
     for (const f of [a, b]) {
       const o = f === a ? b : a;
       f.kb = f.kb || 0;
-      if (FROZEN.has(f.anim)) { this.integrate(f, dt, 0, 8); continue; }
       const dist = Math.abs(o.x - f.x), dir = Math.sign(o.x - f.x) || (f.idx === 0 ? 1 : -1);
-      if (f.y <= 0) f.facing = dir;
-      const spd = 0.8 + (f.def.speed || 70) / 200;  // 1.03 .. 1.29
-      let desired = 0, accel = 10;
-      const mine = this.antic && this.antic.by === f.idx ? this.antic : null;
-      const P = this.plan && this.plan.launched ? this.plan : null;   // clip attack in flight
-      const myP = P && P.ev.by === f.idx && f.plan === P && f.rig && f.rig.id === P.clip ? P : null;
+      if (FROZEN.has(f.anim) || GROUNDED.has(f.anim)) { f.move = null; this.physics(f, dt); continue; }
+      if (f.y <= 0 && !BUSY.has(f.anim)) f.facing = dir;
+      const busy = BUSY.has(f.anim) && f.anim !== 'dash' && f.anim !== 'backdash';
+      if (busy && f.move && f.move.kind === 'step') f.move = null;   // no sliding through a hit or strike
 
+      const myP = P && P.launched && P.ev.by === f.idx && f.plan === P && f.rig && f.rig.id === P.clip ? P : null;
       if (myP && f.rig.time < myP.impact) {
-        // wind-up in progress: root motion carries the lunge; make up
-        // whatever is still missing so the impact frame meets the target
+        // wind-up: close the remaining error exactly by the impact frame
+        f.move = null;
         const frac = clamp((f.rig.time - myP.start) / Math.max(0.01, myP.impact - myP.start), 0, 1);
         const need = dist - myP.reach - myP.travel * myP.rm * (1 - frac);
-        const tImp = mine ? Math.max(0.1, mine.inSec + myP.delay) : 0.3;
-        desired = Math.abs(need) > 0.05 ? dir * clamp(need / tImp, -3, 10) : 0;
-        accel = 20;
-      } else if (P && P.ev.by !== f.idx && !FROZEN.has(f.anim) && mine == null) {
-        desired = 0; // stand in for the incoming blow
-      } else if (mine && mine.inSec < Math.max(0.5, (P || this.plan || {}).impact || 0)) {
-        // set up the scripted attack
-        if (mine.kind === 'ranged') {
-          if (dist < 2.8) desired = -dir * 6 * spd;
-        } else if (mine.kind === 'flying') {
-          if (dist < 2.2) desired = -dir * 5;
-        } else if (mine.kind === 'melee' || (mine.range && mine.kind === 'flying')) {
-          const need = dist - (mine.range || MELEE);
-          if (need > 0.05) {
-            const v = need / Math.max(mine.inSec, 0.08);
-            desired = dir * Math.min(v * 1.2, 15);
-            accel = 18;
-            if (v > 5 && f.y <= 0 && (f.anim === 'idle' || f.anim === 'walk')) {
-              f.play('dash');
-              this.particles.burst(new THREE.Vector3(f.x, 0.05, f.z), 5, { color: 0xb8a888, speed: 1.4, life: 0.35, gravity: 3 });
-            }
-          } else if (need < -0.3) desired = -dir * 2.5;
+        const tImp = A && A.by === f.idx ? Math.max(dt, A.inSec + myP.delay) : 0.2;
+        const step = clamp(need * Math.min(1, dt / tImp), -4 * dt, 7 * dt);
+        if (Math.abs(need) > 0.02) f.x += dir * step;
+      } else if (!busy && !f.move && f.y <= 0) {
+        // the attacker moves in just in time: as late as the step or dash to
+        // launch range allows, so exchanges read as dash in, strike, step out
+        let mine = false, d = 0;
+        if (P && !P.launched && P.ev.by === f.idx && A && A.by === f.idx) {
+          const D = P.range || (P.kind === 'fireball' ? clamp(dist, 2.6, 3.6) : dist);
+          d = (o.x - dir * D) - f.x;
+          mine = A.inSec < P.impact + moveDur(Math.abs(d)) + 0.15;
         }
-      } else if (this.antic && this.antic.by !== f.idx && this.antic.inSec < 0.35 && this.antic.kind === 'melee') {
-        desired = 0; // brace for the incoming exchange
-      } else {
-        // exchange just ended: break apart to reset spacing
-        if (f.engaged && dist < 2.2 && f.y <= 0) {
-          const room = this.bound - f.x * -dir;     // space behind me
-          const oRoom = this.bound - o.x * dir;
-          if (room >= oRoom || rand() < 0.3) { f.intent = 'backdash'; this.doIntent(f, o, dist, dir, spd); }
+        const incoming = P && P.ev.by === o.idx && A && A.by === o.idx && A.inSec < P.impact + 0.5;
+        if (mine) {
+          if (Math.abs(d) > 0.08) this.moveTo(f, d, 0.02);
+        } else if (!incoming) {
+          f.restT = (f.restT || 0) - dt;
+          if (f.restT <= 0) {
+            const mid = (a.x + b.x) / 2 * 0.6;
+            const want = mid - dir * (home(f) + (f.jit || 0)) / 2;
+            const d = want - f.x;
+            f.jit = randRange(-0.25, 0.35);
+            if (Math.abs(d) > 0.16) this.moveTo(f, clamp(d, -1.6, 1.6), randRange(0.35, 0.9));
+            else f.restT = randRange(0.3, 0.8);
+          }
         }
-        f.intentT = (f.intentT || 0) - dt;
-        if (f.intentT <= 0) this.pickIntent(f, o, dist, dir, spd);
-        switch (f.intent) {
-          case 'approach': desired = dir * 3.0 * spd; break;
-          case 'retreat': desired = -dir * 2.6 * spd; break;
-          case 'zone': desired = dist < f.want - 0.3 ? -dir * 3 * spd : dist > f.want + 0.3 ? dir * 3 * spd : 0; break;
-          default: desired = 0;
-        }
-        // gentle pull back toward center stage; keep the pair framable
-        desired += -f.x * 0.22;
-        if (dist > this.maxSep) desired = dir * 4;
       }
-      f.engaged = !!(mine && mine.inSec < 0.6) || !!(this.antic && this.antic.inSec < 0.6);
-      if (myP) {
-        if (f.rig.time >= myP.impact) desired = 0;     // recovery: hold ground
-      } else if (BUSY.has(f.anim) && f.anim !== 'dash' && f.anim !== 'backdash') desired *= 0.25;
-      this.integrate(f, dt, desired, accel);
 
-      // edge handling: cornered fighters push off or jump out
-      if (Math.abs(f.x) > this.bound) {
-        f.x = Math.sign(f.x) * this.bound;
-        f.kb = 0;
-        if (f.intent === 'retreat') f.intentT = 0;
-      }
-      if (f.y <= 0 && !BUSY.has(f.anim) && !FROZEN.has(f.anim)) {
-        f.anim = moveState(f);
-      }
+      // advance the current step / dash
+      if (f.move) {
+        const m = f.move;
+        m.t += dt;
+        const u = Math.min(1, m.t / m.dur);
+        const e = 0.5 * u + 0.5 * u * u * (3 - 2 * u);
+        f.x = m.x0 + (m.x1 - m.x0) * e;
+        f.vx = (m.x1 - m.x0) / m.dur;
+        if (u >= 1) { f.move = null; f.vx = 0; f.restT = m.rest; }
+      } else f.vx = 0;
+      this.physics(f, dt);
+      if (f.y <= 0 && !BUSY.has(f.anim)) f.anim = f.move && f.move.kind === 'step' ? 'walk' : 'idle';
     }
-    // no overlapping
+    // bodies never overlap
     const d = b.x - a.x;
     if (Math.abs(d) < MIN_SEP && a.y < 0.5 && b.y < 0.5) {
       const push = (MIN_SEP - Math.abs(d)) / 2 * (Math.sign(d) || 1);
@@ -780,63 +782,53 @@ export class Arena {
     }
   }
 
-  // Neutral-game decisions: spacing, dashes, jumps, zoning.
-  pickIntent(f, o, dist, dir, spd) {
-    const agg = (f.def.aggression || 70) / 100;
-    const zoner = f.def.special && f.def.special.kind === 'fireball';
-    const nearEdge = Math.abs(f.x) > this.bound - 1.4 && Math.sign(f.x) === -dir;
-    const opts = nearEdge ? [
-      // cornered: get out
-      ['jumpover', dist < 2.4 ? 0.5 : 0.1],
-      ['dashin', 0.3],
-      ['approach', 0.25],
-      ['hold', 0.08],
-    ] : [
-      ['hold', 0.2],
-      ['approach', dist > 3 ? 0.35 + agg * 0.3 : 0.06],
-      ['retreat', dist < 2.6 ? 0.32 : 0.1],
-      ['backdash', dist < 2.6 ? 0.3 : 0.05],
-      ['dashin', dist > 2.4 ? 0.22 * (0.6 + agg) : 0],
-      ['jump', 0.22],
-      ['zone', zoner ? 0.4 : 0],
-    ];
-    const total = opts.reduce((s, x) => s + x[1], 0);
-    let r = rand() * total, choice = 'hold';
-    for (const [k, w] of opts) { r -= w; if (r <= 0) { choice = k; break; } }
-    f.intent = choice;
-    this.doIntent(f, o, dist, dir, spd);
+  // Start a step (or a dash for longer distances) of exactly `d` metres.
+  moveTo(f, d, rest = 0.3) {
+    const lim = this.bound;
+    d = clamp(f.x + d, -lim, lim) - f.x;
+    const ad = Math.abs(d);
+    if (ad < 0.04) return;
+    const fwd = Math.sign(d) === f.facing;
+    let kind = 'step';
+    const dur = moveDur(ad);
+    if (ad > 1.0) {
+      kind = fwd ? 'dash' : 'backdash';
+      f.play(kind);
+      this.particles.burst(new THREE.Vector3(f.x, 0.05, f.z), 5, { color: 0xb8a888, speed: 1.4, life: 0.35, gravity: 3 });
+    }
+    f.move = { x0: f.x, x1: f.x + d, t: 0, dur, kind, rest };
   }
 
-  doIntent(f, o, dist, dir, spd) {
-    const choice = f.intent;
-    f.intentT = randRange(0.35, 1.15);
-    const dust = () => this.particles.burst(new THREE.Vector3(f.x, 0.05, f.z), 6, { color: 0xb8a888, speed: 1.5, life: 0.35, gravity: 3 });
-    switch (choice) {
-      case 'backdash':
-        f.kb += -dir * impulseFor(randRange(1.4, 2.6), 0.3) / 3.2;
-        f.play('backdash'); dust(); f.intentT = 0.4;
-        break;
-      case 'dashin':
-        f.kb += dir * impulseFor(Math.min(dist - 1.3, randRange(1.6, 3)), 0.3) / 3.2 * spd;
-        f.play('dash'); dust(); f.intentT = 0.35;
-        break;
-      case 'jump': {
-        f.vy = randRange(6.5, 8);
-        f.kb += (rand() < 0.6 ? dir : -dir) * randRange(2.5, 4.5);
-        dust();
-        f.intentT = 0.8;
-        break;
+  // Knockback impulses, gravity, landing, stage bounds (positions are
+  // otherwise driven by moveTo tweens and clip root motion).
+  physics(f, dt) {
+    f.x += f.kb * dt;
+    f.kb *= Math.exp(-KB_DECAY * dt);
+    if (f.y > 0 || f.vy > 0) {
+      f.vy -= 22 * dt;
+      f.y += f.vy * dt;
+      if (f.y <= 0) {
+        f.y = 0; f.vy = 0;
+        if (!FROZEN.has(f.anim) && !BUSY.has(f.anim)) f.play('land');
+        this.particles.burst(new THREE.Vector3(f.x, 0.05, f.z), 6, { color: 0xb8a888, speed: 1.2, life: 0.4, gravity: 3 });
       }
-      case 'jumpover': {
-        // vault over the opponent and land on the far side
-        f.vy = 9.5;
-        f.kb += dir * impulseFor(dist + 1.5, 0.8);
-        dust();
-        f.intentT = 1.0;
-        break;
-      }
-      case 'zone': f.want = randRange(3.6, Math.min(5.8, this.maxSep - 0.5)); break;
     }
+    f.x = clamp(f.x, -this.bound - 0.5, this.bound + 0.5);
+  }
+
+  // New round: back to your own corners, facing each other.
+  resetPositions() {
+    const h = this.portrait ? 1.55 : 1.9;
+    this.fighters.forEach((f, i) => {
+      f.x = (i === 0 ? -1 : 1) * (h / 2 + 0.6);
+      f.y = 0; f.vy = 0; f.kb = 0; f.vx = 0;
+      f.move = null; f.restT = 0.4 + i * 0.3;
+      f.facing = i === 0 ? 1 : -1;
+      f.smYaw = f.facing * Math.PI / 2 - f.facing * 0.3;
+      if (!FROZEN.has(f.anim) && !GROUNDED.has(f.anim)) f.play('idle');
+    });
+    this.plan = null;
+    this.director.setMode('fight', { restart: true, snap: 0.6 });
   }
 
   // ------------------------------ render ------------------------------

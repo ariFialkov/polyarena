@@ -41,11 +41,20 @@ export class PortraitStudio {
     this.scene.add(f.root);
     const slot = { canvas, ctx: canvas.getContext('2d'), fighter: f, side, token: ++this.token };
     this.slots.set(name, slot);
+    // neon loading ring until the fighter is up, then a reveal flash
+    const wrap = canvas.parentElement;
+    if (wrap) { wrap.classList.remove('reveal'); wrap.classList.add('loading'); }
+    f.ready.then(() => {
+      if (this.slots.get(name) !== slot || !wrap) return;
+      wrap.classList.remove('loading');
+      void wrap.offsetWidth;
+      wrap.classList.add('reveal');
+    });
     if (def.model) {
       instantiateModel(def.model).then(m => {
         if (this.slots.get(name) === slot) f.attachModel(m);
-      }).catch(() => {});
-    }
+      }).catch(() => f.markReady());
+    } else f.markReady();
     return slot;
   }
 

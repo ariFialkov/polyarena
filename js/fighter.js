@@ -39,7 +39,7 @@ export class Fighter {
     this.x = idx === 0 ? -1.2 : 1.2;
     this.z = 0;
     this.y = 0; this.vx = 0; this.vy = 0; this.kb = 0;
-    this.intent = 'hold'; this.intentT = 0; this.want = 4;
+    this.move = null; this.restT = 0;   // movement director state (render3d.js)
     this.facing = idx === 0 ? 1 : -1;
     this.anim = 'idle';
     this.animT = 0;
@@ -61,6 +61,8 @@ export class Fighter {
     this.rig = null;          // ClipRig once clip mode is on
     this.animLen = null;      // busy duration of the current clip state
     this.recent = [];
+    // resolves once the model is on screen and animating
+    this.ready = new Promise(res => { this.markReady = res; });
   }
 
   // ---------------------------------------------------------------- model
@@ -78,9 +80,13 @@ export class Fighter {
     // placeholder flash); without the library, fall back to procedural poses
     const box = this.retarget.container;
     box.visible = false;
-    const enable = () => { if (this.retarget && this.retarget.model === model && !this.rig) this.enableClips(model, rest); box.visible = true; };
+    const enable = () => {
+      if (this.retarget && this.retarget.model === model && !this.rig) this.enableClips(model, rest);
+      box.visible = true;
+      this.markReady();
+    };
     if (LIB) enable();
-    else loadAnimLib().then(enable).catch(err => { console.warn('animation library failed to load', err); box.visible = true; });
+    else loadAnimLib().then(enable).catch(err => { console.warn('animation library failed to load', err); box.visible = true; this.markReady(); });
   }
 
   // ---------------------------------------------------------------- clips
@@ -124,18 +130,20 @@ export class Fighter {
     const hipsPos = art.hips.position.clone();
     art.apply(false, probe);
     this.root.updateMatrixWorld(true);
-    const limb = m.limb || 'RH', side = limb[0] === 'L' ? 'Left' : 'Right';
-    const pts = limb === 'HEAD' ? ['Head'] : {
-      H: [side + 'Hand'], F: [side + 'Foot', side + 'ToeBase'], K: [side + 'Leg'], E: [side + 'ForeArm'],
-    }[limb[1]] || [side + 'Hand'];
+    // the striking limb is whichever of the pair is extended furthest
+    // toward the opponent (some clips' labels name the wrong side)
+    const limb = m.limb || 'RH';
+    const parts = limb === 'HEAD' ? [['Head', 'HEAD']] : {
+      H: [['Hand', 'H']], F: [['Foot', 'F'], ['ToeBase', 'F']], K: [['Leg', 'K']], E: [['ForeArm', 'E']],
+    }[limb[1]] || [['Hand', 'H']];
     const v = new THREE.Vector3();
     let best = null;
-    for (const n of pts) {
-      if (!this.retarget.boneWorld(n, v)) continue;
+    for (const [bone, code] of parts) for (const side of limb === 'HEAD' ? [''] : ['Left', 'Right']) {
+      if (!this.retarget.boneWorld(side + bone, v)) continue;
       this.root.worldToLocal(v);
-      if (!best || v.z > best.fwd) best = { fwd: v.z, up: v.y };
+      if (!best || v.z > best.fwd) best = { fwd: v.z, up: v.y, limb: code === 'HEAD' ? 'HEAD' : side[0] + code };
     }
-    if (best) best.fwd += limb === 'HEAD' ? 0.1 : limb[1] === 'H' ? 0.06 : 0.02;   // fist/forehead surface
+    if (best) best.fwd = Math.max(0.3, best.fwd + (limb === 'HEAD' ? 0.1 : limb[1] === 'H' ? 0.06 : 0.02));   // fist/forehead surface
     i = 0;
     for (const b of art.restLocal.keys()) b.quaternion.copy(saved[i++]);
     art.hips.position.copy(hipsPos);

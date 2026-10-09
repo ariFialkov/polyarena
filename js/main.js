@@ -16,7 +16,7 @@ import { Table, buildChipTray } from './table.js';
 import { Hud, shortName } from './hud.js';
 import { makeBots, scheduleTableBets, chooseTableBet, maybeLiveBet } from './bots.js';
 import { PortraitStudio } from './portraits.js';
-import { loadModel } from './models.js';
+import { prefetchModels } from './models.js';
 import { loadAnimLib } from './anim.js';
 import { FX } from './fx.js';
 import { sfx, setSound, soundOn } from './audio.js';
@@ -96,9 +96,9 @@ function boot() {
     b.onclick = () => { deferredPrompt.prompt(); b.hidden = true; };
   });
 
-  // warm the model cache for everyone who has one
+  // the animation library loads right away alongside the first matchup's two
+  // models (newMatch); everyone else is prefetched once those are on screen
   loadAnimLib().catch(err => console.warn('animation library failed to load', err));
-  for (const f of FIGHTERS) if (f.model) loadModel(f.model).catch(() => {});
 
   hud.setBankroll(S.bankroll);
   window.PA = { arena, state: S, studio, fx }; // debug/console handle
@@ -169,7 +169,7 @@ function newMatch() {
 
   document.body.classList.remove('fighting');
   arena.setStage(S.stage);
-  arena.setFighters(A, B);
+  arena.setFighters(A, B).then(() => prefetchModels(FIGHTERS.map(f => f.model)));
   arena.setMode('lobby');
   hud.setMatch(S.match);
   hud.clearHuddles();
@@ -384,10 +384,20 @@ function endBetting() {
   sfx.bellEnd();
   setTimeout(() => $('#table').classList.add('open'), 300);
   setTimeout(() => {
-    $('#table').hidden = true;
-    studio.clear();
-    document.body.classList.add('fighting');
-    startIntro();
+    // never walk out invisible fighters: wait (briefly) for both models
+    let started = false;
+    const go = () => {
+      if (started || S.phase !== 'TRANSITION') return;
+      started = true;
+      $('#table').hidden = true;
+      studio.clear();
+      document.body.classList.add('fighting');
+      startIntro();
+    };
+    let waiting = true;
+    (arena.ready || Promise.resolve()).then(() => { waiting = false; go(); });
+    setTimeout(() => { if (waiting) hud.announce('GET READY', 'gold', 1500); }, 150);
+    setTimeout(go, 12000);
   }, 1250);
 }
 
@@ -481,6 +491,7 @@ function startRound(r) {
   hud.setHp(0, S.hpNow[0]);
   hud.setHp(1, S.hpNow[1]);
   hud.setClock(ROUND_SECS / TIME_SCALE, r);
+  if (r > 1) arena.resetPositions();   // everyone back to their own corner
   arena.setMode('fight');
   $('#strikeMeter').classList.remove('hidden');
   updateStrikeMeter();

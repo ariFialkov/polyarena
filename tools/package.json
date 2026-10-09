@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "convert-models": "node convert-models.mjs",
-    "convert-anims": "node convert-anims.mjs"
+    "convert-anims": "node convert-anims.mjs",
+    "quantize-models": "node quantize-glb.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.55.0",
