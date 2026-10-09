@@ -1,0 +1,112 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js"}}</script>
+</head><body>
+<script type="module">
+// Browser half of the animation converter: Mixamo FBX clips -> anims.bin
+// (binary, ~6 bytes per bone rotation) + JSON metadata with the rest skeleton.
+import * as THREE from 'three';
+import { FBXLoader } from '/three/examples/jsm/loaders/FBXLoader.js';
+
+const strip = n => n.replace(/^mixamorig[:_]?/i, '');
+const EFF = { LH: 'LeftHand', RH: 'RightHand', LF: 'LeftFoot', RF: 'RightFoot', LK: 'LeftLeg', RK: 'RightLeg', LE: 'LeftForeArm', RE: 'RightForeArm', HEAD: 'Head' };
+const FINGER = /(Thumb|Index|Middle|Ring|Pinky)\d/;
+const r1 = v => Math.round(v * 10) / 10;
+
+
+// Packed quaternion: "smallest three" in 3 int16s; the dropped component's
+// index lives in the low 2 bits of the first value.
+const QS = 32767 / Math.SQRT1_2;
+function packQuat(q, out, o) {
+  const c = [q.x, q.y, q.z, q.w];
+  let big = 0;
+  for (let i = 1; i < 4; i++) if (Math.abs(c[i]) > Math.abs(c[big])) big = i;
+  const sgn = c[big] < 0 ? -1 : 1;
+  const rest = c.filter((_, i) => i !== big).map(v => Math.max(-32767, Math.min(32767, Math.round(v * sgn * QS))));
+  out[o] = (rest[0] & ~3) | big;
+  out[o + 1] = rest[1];
+  out[o + 2] = rest[2];
+}
+
+window.convert = async (manifest) => {
+  const loader = new FBXLoader();
+  const meta = { fps: 30, clips: {} };
+  const blobs = {};
+  for (const [id, m] of Object.entries(manifest)) {
+    const obj = await loader.loadAsync('/clip/' + encodeURIComponent(id));
+    obj.traverse(o => { o.name = strip(o.name); });
+    // tracks must follow the renamed bones ("mixamorigHips.position" -> "Hips.position")
+    for (const t of obj.animations[0].tracks) {
+      const i = t.name.lastIndexOf('.');
+      t.name = strip(t.name.slice(0, i)) + t.name.slice(i);
+    }
+    const bones = [];
+    obj.traverse(o => { if (o.isBone) bones.push(o); });
+    const byName = Object.fromEntries(bones.map(b => [b.name, b]));
+    if (!meta.skeleton) {
+      // rest skeleton: name, parent index, local position (cm), local rotation
+      meta.skeleton = bones.map(b => ({
+        name: b.name,
+        parent: bones.indexOf(b.parent),
+        pos: b.position.toArray().map(v => +v.toFixed(3)),
+        quat: b.quaternion.toArray().map(v => +v.toFixed(6)),
+      }));
+      const animated = new Set(obj.animations[0].tracks.filter(t => t.name.endsWith('.quaternion')).map(t => strip(t.name.split('.')[0])));
+      meta.body = bones.map(b => b.name).filter(n => animated.has(n) && !FINGER.test(n));
+      meta.fingers = bones.map(b => b.name).filter(n => animated.has(n) && FINGER.test(n));
+    }
+    const src = obj.animations[0];
+    const V = n => byName[n].getWorldPosition(new THREE.Vector3());
+    const mixer = new THREE.AnimationMixer(obj);
+    const act = mixer.clipAction(src); act.setLoop(THREE.LoopOnce); act.clampWhenFinished = true; act.play();
+    const N = Math.max(1, Math.round(src.duration * 30));
+    const nb = meta.body.length, nf = meta.fingers.length;
+    const data = new Int16Array((N + 1) * (nb * 3 + 1) + nf * 3);
+    const frames = [];
+    let o = 0;
+    for (let i = 0; i <= N; i++) {
+      mixer.setTime(Math.min(src.duration - 1e-4, i / 30));
+      obj.updateMatrixWorld(true);
+      for (const n of meta.body) { packQuat(byName[n].quaternion, data, o); o += 3; }
+      data[o++] = Math.round(byName.Hips.position.y * 10);          // hips height, mm
+      const f = { hips: V('Hips'), chest: V('Spine2') };
+      if (m.limb) f.eff = V(EFF[m.limb]);
+      frames.push(f);
+    }
+    // static finger pose from the middle of the clip
+    mixer.setTime(src.duration * 0.5);
+    for (const n of meta.fingers) { packQuat(byName[n].quaternion, data, o); o += 3; }
+
+    const h0 = frames[0].hips;
+    const info = { cat: m.cat, dur: Math.round(src.duration * 1000) / 1000, frames: N + 1 };
+    if (m.loop) info.loop = true;
+    info.root = [];                       // hips travel (cm): [lateral, forward] at 15 fps
+    for (let i = 0; i <= N; i += 2) info.root.push([Math.round(frames[i].hips.x - h0.x), Math.round(frames[i].hips.z - h0.z)]);
+    if (m.limb) {
+      let best = -Infinity, bi = 0;
+      frames.forEach((f, i) => {
+        let sc;
+        if (m.metric === 'fwd') sc = f.eff.z - f.hips.z;
+        else if (m.metric === 'up') sc = f.eff.z - f.hips.z > -5 ? f.eff.y : -Infinity;
+        else sc = f.eff.z - f.chest.z > -5 ? f.eff.distanceTo(f.chest) : -Infinity;
+        if (sc > best) { best = sc; bi = i; }
+      });
+      const imp = m.impact != null ? Math.round(m.impact * 30) : bi;
+      const fi = frames[Math.min(imp, frames.length - 1)];
+      info.limb = m.limb;
+      info.impact = Math.round(imp / 30 * 1000) / 1000;
+      info.reach = Math.round(fi.eff.z - fi.hips.z);
+      info.height = Math.round(fi.eff.y);
+      info.travel = Math.round(fi.hips.z - h0.z);
+    }
+    meta.clips[id] = info;
+    const bytes = new Uint8Array(data.buffer);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    blobs[id] = btoa(bin);
+  }
+  return { meta, blobs };
+};
+document.title = 'ready';
+</script>
+</body></html>

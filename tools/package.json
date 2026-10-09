@@ -4,7 +4,8 @@
   "description": "Dev-only tooling (model conversion). Not part of the shipped game.",
   "type": "module",
   "scripts": {
-    "convert-models": "node convert-models.mjs"
+    "convert-models": "node convert-models.mjs",
+    "convert-anims": "node convert-anims.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.55.0",

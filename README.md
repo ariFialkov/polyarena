@@ -23,8 +23,8 @@ Serve over HTTPS (or localhost) for the service worker / install prompt to activ
 ## How a round works
 
 1. **Lobby / betting (30s)** — the neon betting table sits over the live 3D stage.
-   Each corner shows a live 3D cutout of its fighter running a warm-up loop
-   (shadow-boxing, shoulder rolls, flexes, beckons) behind the big *WINS* zone and
+   Each corner shows a live 3D cutout of its fighter running motion-captured
+   warm-ups in character (stretches, chest thumps, salutes, bows, dances) behind the big *WINS* zone and
    *BY KO* / *BY DECISION* pockets; shared props run down the center under a live
    red-vs-blue **money split**. Bot players sit on the rail at the top: their chips
    fly to the zones they back, zones show pool size and bettor counts, and badges
@@ -94,16 +94,72 @@ offline) presented Mortal-Kombat style.
 
 ## Characters & imported models
 
-Fighters are pop-culture parody caricatures (`js/fighters.js`). Each one is
-animated by a procedural pose system on a named **driver rig**
-(`js/fighter.js`); characters with an imported model wear it via the
-**retargeter** (`js/models.js`), which copies the driver's limb orientations onto
-the model's humanoid skeleton in world space every frame (so it's independent of
-each rig's bone-axis conventions) and curls the fingers into fists. Characters
-without a model fall back to the procedural caricature rig (`js/charrig.js`).
+Fighters are pop-culture parody caricatures (`js/fighters.js`) wearing imported
+rigged models, animated with **motion-captured Mixamo clips** (see below).
+Until a model and the clip library have loaded, a procedural pose system on a
+named **driver rig** (`js/fighter.js`) animates them instead: the
+**retargeter** in `js/models.js` copies the driver's limb orientations onto the
+model's skeleton, and with no model at all the procedural caricature rig
+(`js/charrig.js`) is shown.
 
 All 15 fighters use imported models. The procedural caricature rig remains as the
 fallback while a model is downloading (or for any future fighter without one).
+
+### Motion capture and fighting styles
+
+`assets/anims/` holds 122 Mixamo clips: 8 fight idles, steps, a jump, guards and
+dodges, 24 hit reactions, 5 knockouts, about 60 strikes, and the emotes used
+for taunts, warm-ups and victories. The strikes cover jabs, crosses, hooks,
+haymakers, overhands, uppercuts, elbows, knees, headbutts, front, low, high,
+side, axe, crescent and spinning kicks, jump and flip kicks, butterfly kicks,
+dropkicks, sweeps, throws, casts and a takedown.
+
+- **Runtime** (`js/anim.js`): each fighter gets an invisible Mixamo skeleton
+  driven by a `THREE.AnimationMixer`, so clips crossfade. Every frame the pose
+  is retargeted onto the fighter's own model in the character's frame:
+  `Q = Qsrc(t) · Qsrc_rest⁻¹ · R · Qmodel_rest`, where R aligns each bone's rest
+  direction. Every model keeps its own proportions, and the fighter on the
+  right plays the motion **mirrored**, as in 2D fighters. Root travel is
+  stripped from the clips and re-applied as root motion along the stage, so
+  lunges, flying knees and knockouts actually cover ground.
+- **Style kits** (`js/styles.js`): each fighter has a signature move set:
+  stance, quick shots, power shots, kicks, sweeps, finisher, special motion,
+  guards, taunts, intro, victory and lobby warm-ups. Some examples:
+  - The Don: body jabs and haymakers, almost no kicks.
+  - Ibra: spinning, scissor and high kicks, plus football headers.
+  - Twist: butterfly kicks and flips.
+  - Le Petit: bayonet lunges.
+  - Odysseus: Sparta kicks, knees, and a **takedown** knockout (the victim is
+    taken down with him).
+  - The Demon: headbutts and elbows.
+
+  The choreography only says "a punch, a kick, a sweep or the finisher lands
+  at t". The kit picks a clip that fits the time available.
+- **Hit sync** (`js/render3d.js`): as soon as an attack is the next scripted
+  event, the arena plans it:
+  1. It picks the clip.
+  2. It sets the spacing from that clip's reach and travel.
+  3. It launches the clip early, so the wind-up plays before the scripted
+     moment.
+  4. Every frame it retunes the clip's speed so the **impact frame lands
+     exactly on the event**.
+
+  Reactions are picked by the strike's height (head or body) and weight.
+  Blocked strikes raise the defender's guard just before the blow.
+
+Rebuilding the library after changing the clip catalogue
+(`tools/anims.manifest.json`, which maps ids to source files, with an optional
+impact-time override per clip):
+
+```sh
+cd tools && npm install && npm run convert-anims
+```
+
+The converter reads `assets/anims/src/Polyarena_Animations.zip` (the source
+FBX clips) and runs a headless Chromium (Playwright) to load each FBX with
+three.js. It finds every strike's impact frame, reach and travel, and packs
+30 fps quaternions as int16 "smallest three" into `anims.bin` (about 0.8 MB),
+with metadata in `anims.json`.
 
 ### Adding a model
 
@@ -145,7 +201,9 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 | `js/render3d.js` | 3D arena: stage/lights, movement director, specials VFX, particles |
 | `js/camera.js` | MK-style camera director |
 | `js/fighter.js` | Fighter pose animator (driver rig) + model attachment |
-| `js/models.js` | GLB loading/cloning + world-space retargeter |
+| `js/models.js` | GLB loading/cloning + driver-rig retargeter (procedural fallback) |
+| `js/anim.js` | Mocap clip library, per-fighter clip player, retargeting + mirroring |
+| `js/styles.js` | Per-fighter fighting-style kits and strike→clip selection |
 | `js/charrig.js` | Driver rig + procedural caricature fallback meshes |
 | `js/portraits.js` | Live 3D cutouts for the lobby and result card (shares the renderer) |
 | `js/fx.js` | Screen-space VFX: chip flights, sparks, embers, coins, confetti |
@@ -157,7 +215,7 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 | `js/main.js` | Phase state machine, heat/streak tracking, timing |
 | `js/audio.js` | WebAudio-synthesized SFX (no assets) |
 | `sw.js`, `manifest.webmanifest` | PWA shell caching + install metadata |
-| `tools/` | Dev-only FBX → GLB model converter |
+| `tools/` | Dev-only FBX → GLB model converter and Mixamo clip converter |
 | `fonts/` | Bungee, Teko, Rajdhani (SIL OFL, licenses included) |
 
 Testing tip: `?fighters=thump,zoltan&stage=sakura` pins the first match.

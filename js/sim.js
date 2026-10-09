@@ -16,8 +16,9 @@ const STRIKE_TYPES = ['punch', 'punch', 'palm', 'backfist', 'elbow', 'roundhouse
 const HEAVY_TYPES = ['backfist', 'roundhouse', 'spinkick', 'palm', 'elbow'];
 const OPENERS = ['punch', 'snapkick', 'punch', 'palm'];
 const ENDERS = ['roundhouse', 'spinkick', 'uppercut', 'backfist', 'sweep'];
-const HIT_GAP = [1.35, 2.0];      // game secs between hits in a combo (~0.22-0.33 s real)
-const KO_RESERVE = 8;             // game secs kept clear before the KO finisher
+const HIT_GAP = [2.6, 3.6];       // game secs between hits in a combo (~0.43-0.6 s real,
+                                  // room for each motion-captured strike to land)
+const KO_RESERVE = 12;            // game secs kept clear before the KO finisher
 const WEIGHT = { special: 2.6, heavy: 1.45, normal: 1 };
 
 export function buildScript(outcome, A, B, hp) {
@@ -41,7 +42,7 @@ export function buildScript(outcome, A, B, hp) {
     if (isEndRound) {
       const koT = Math.max(roundLen * 0.9, roundLen - 0.01);
       const by = outcome.winner;
-      const step = Math.min(1.5, reserve / 4.5);
+      const step = Math.min(2.6, reserve / 4.5);
       for (let i = 3; i >= 1; i--) {
         events.push({ t: koT - i * step, type: 'hurt', by, strike: pick(HEAVY_TYPES), counted: false });
       }

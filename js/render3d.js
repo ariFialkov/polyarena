@@ -8,17 +8,25 @@
 // director closes the distance just in time for each scripted hit.
 
 import * as THREE from '../vendor/three.module.min.js';
-import { clamp, rand, randRange } from './util.js';
+import { clamp, rand, randRange, pick } from './util.js';
 import { buildStage, skyTexture } from './stages.js';
 import { Fighter, BUSY, FROZEN } from './fighter.js';
 import { instantiateModel } from './models.js';
 import { CameraDirector } from './camera.js';
+import { clipMeta } from './anim.js';
+import { chooseMove } from './styles.js';
 import { sfx } from './audio.js';
 
 export const SPECIALS = ['fireball', 'teleport', 'flyingkick', 'shockwave'];
 const MELEE = 0.92;     // root-to-root distance for landed hand/foot strikes
 const MIN_SEP = 0.6;
 const KB_DECAY = 5.5;
+const BODY_R = 0.2;     // strike target depth in front of the victim's root
+// specials connect this long after their scripted moment (main.js applies
+// their damage then): fireballs release on time and fly, kicks/slams land late
+const SPECIAL_DELAY = { fireball: 0, flyingkick: 0.3, shockwave: 0.33 };
+const SPECIAL_STATE = { fireball: 'cast', flyingkick: 'flying', shockwave: 'slam' };
+const HEAVY = new Set(['backfist', 'roundhouse', 'spinkick', 'palm', 'elbow']);
 
 // impulse that travels `dist` in roughly `T` seconds under KB_DECAY
 const impulseFor = (dist, T) => dist * KB_DECAY / (1 - Math.exp(-KB_DECAY * T));
@@ -122,6 +130,10 @@ export class Arena {
     for (const f of this.fighters) if (f) this.scene.remove(f.root);
     this.fighters = [new Fighter(A, 0), new Fighter(B, 1)];
     this.fighters[0].x = -3; this.fighters[1].x = 3;
+    this.fighters[0].opp = this.fighters[1]; this.fighters[1].opp = this.fighters[0];
+    this.plan = null;
+    this.clock = 0;
+    this.lastHitAt = -9;
     for (const f of this.fighters) { this.scene.add(f.root); f.play('warmup'); }
     this.flash = 0; this.redFlash = 0; this.slowmo = 1; this.hitstop = 0;
     this.antic = null;
@@ -166,7 +178,13 @@ export class Arena {
 
   // Upcoming scripted attack (from main.js each frame): who, how soon (real
   // seconds), and what. Lets the movement director set up the exchange.
-  anticipate(by, inSec, strike) {
+  //
+  // With motion clips, the attack is PLANNED as soon as its event is next:
+  // the fighter's style kit picks a clip that fits the time left, the
+  // spacing is set from the clip's reach and travel, and the clip launches
+  // early (its wind-up plays before the scripted moment) with its speed
+  // re-tuned every frame so the impact frame lands exactly on the event.
+  anticipate(by, inSec, strike, ev) {
     if (by == null) { this.antic = null; return; }
     let kind = 'melee';
     if (strike === 'fireball') kind = 'ranged';
@@ -174,13 +192,104 @@ export class Arena {
     else if (strike === 'flyingkick') kind = 'flying';
     else if (strike === 'shockwave') kind = 'slam';
     this.antic = { by, inSec, kind };
+    const f = this.fighters[by], o = this.fighters[1 - by];
+    if (!ev || !f || !o || !f.rig || this.mode !== 'fight') return;
+    let p = this.plan;
+    if (!p || p.ev !== ev) p = this.plan = this.makePlan(f, o, ev, inSec);
+    if (!p) return;
+    if (p.range) this.antic.range = p.range;
+    const tImp = inSec + p.delay;
+    if (!p.launched) {
+      if (tImp <= p.impact + 1e-3 && !FROZEN.has(f.anim)) this.launch(p, f, o, tImp);
+    } else if (f.plan === p && f.rig.cur && f.rig.id === p.clip && f.anim !== 'hit' && f.anim !== 'hurt') {
+      const rem = p.impact - f.rig.time;
+      if (rem > 0.01 && tImp > 0.01) f.rig.timeScale = clamp(rem / tImp, 0.5, 3);
+    }
+    // the defender gets the guard up just before a blocked strike lands
+    if (ev.type === 'miss' && p.launched && !p.guarded && tImp < 0.2 && o.rig && !FROZEN.has(o.anim)) {
+      p.guarded = true;
+      o.guard();
+    }
+  }
+
+  makePlan(f, o, ev, inSec) {
+    const special = ev.type === 'strike' && SPECIALS.includes(ev.strike);
+    if (special && ev.strike === 'teleport') return null;
+    let clip, impact, delay = 0;
+    if (special) {
+      clip = f.kit.special.clip;
+      impact = f.kit.special.impact || clipMeta(clip).impact;
+      delay = SPECIAL_DELAY[ev.strike];
+    } else {
+      // an opener has room to lunge or leap in; mid-combo hits stay compact
+      const opener = this.clock - this.lastHitAt + inSec > 1.1;
+      const type = ev.type === 'ko' ? 'uppercut' : ev.strike;
+      clip = chooseMove(f.kit, type, { window: inSec, opener: opener || ev.type === 'ko', heavy: ev.type === 'hurt', recent: f.recent });
+      impact = clipMeta(clip).impact;
+    }
+    const m = clipMeta(clip);
+    if (!m) return null;
+    f.recent = [clip, ...f.recent].slice(0, 3);
+    const k = f.k;
+    const reach = Math.max(30, m.reach || 50) * k + BODY_R;
+    const travel = Math.max(0, m.travel || 0) * k;
+    const range = ev.strike === 'fireball' || ev.strike === 'shockwave' ? 0
+      : clamp(reach + (travel > 0.12 ? travel : 0), MIN_SEP + 0.05, 4.2);
+    return { ev, clip, impact, delay, reach, travel, range, special, kind: ev.strike, launched: false };
+  }
+
+  launch(p, f, o, tImp) {
+    const ts = clamp(p.impact / Math.max(tImp, 0.01), 0.75, 2.6);
+    const start = Math.max(0, p.impact - tImp * ts);
+    const dist = Math.abs(o.x - f.x);
+    const planted = p.kind === 'fireball' || p.kind === 'shockwave';
+    const rm = p.travel > 0.12 && !planted ? clamp((dist - p.reach) / p.travel, 0, 1.3) : 0;
+    const m = clipMeta(p.clip);
+    const state = p.special ? SPECIAL_STATE[p.kind] : 'strike';
+    const len = Math.min((m.dur - start) / ts, (p.impact - start) / ts + 0.5);
+    f.act(p.clip, { state, ts, start, rm, fade: 0.1, len });
+    f.plan = p;
+    p.launched = true;
+    p.rm = rm;
+    p.start = start;
+    // grappling KO: the victim is taken down with the attacker
+    if (p.ev.type === 'ko' && p.clip === 'takedown' && o.rig) {
+      o.act('ko_takedown', { state: 'down', ts, start, rm: 1, fade: 0.1, len: Infinity });
+    }
+  }
+
+  // Unplanned clip attack (late event / plan skipped): start the clip just
+  // before its impact so the hit still reads. Returns seconds to impact.
+  launchNow(f, o, clip, lead, state = 'strike', impact) {
+    const m = clipMeta(clip);
+    impact = impact || m.impact;
+    const start = Math.max(0, impact - lead);
+    const dist = Math.abs(o.x - f.x);
+    const reach = Math.max(30, m.reach || 50) * f.k + BODY_R;
+    const travel = Math.max(0, m.travel || 0) * f.k;
+    const rm = travel > 0.12 ? clamp((dist - reach) / travel, 0, 1.3) : 0;
+    f.act(clip, { state, start, rm, fade: 0.06, len: impact - start + 0.45 });
+    return impact - start;
+  }
+
+  // Land a clip strike on the victim: reaction by height and weight.
+  reactTo(o, m, { hurt = false, heavy = false, ko = false } = {}) {
+    if (!o.rig) { o.play(hurt ? 'hurt' : 'hit'); return; }
+    if (o.anim === 'down' || (o.rig.meta && o.rig.meta.cat === 'ko')) return;
+    if (ko) { o.fall(m && m.height < 50 ? 'ko_back' : null); return; }
+    const zone = m && m.height < 125 ? 'body' : 'head';
+    o.react(hurt ? 2 : heavy ? 1 : 0, zone);
   }
 
   // ------------------------------ actions ------------------------------
 
-  strike(by, type, landed, hurt = false) {
+  strike(by, type, landed, hurt = false, ev = null) {
     const f = this.fighters[by], o = this.fighters[1 - by];
     if (!f || !o) return;
+    const p = ev && this.plan && this.plan.ev === ev && this.plan.launched && f.plan === this.plan
+      && f.rig && f.rig.id === this.plan.clip ? this.plan : null;
+    this.lastHitAt = this.clock;
+    if (f.rig) return this.clipStrike(f, o, type, landed, hurt, ev, p);
 
     switch (type) {
       case 'fireball': return this.doFireball(f, o);
@@ -207,15 +316,59 @@ export class Arena {
     }
   }
 
+  clipStrike(f, o, type, landed, hurt, ev, p) {
+    switch (type) {
+      case 'fireball': return this.doFireball(f, o, p);
+      case 'teleport': return this.doTeleport(f, o);
+      case 'flyingkick': return this.doFlyingKick(f, o, p);
+      case 'shockwave': return this.doShockwave(f, o, p);
+    }
+    const dist = Math.abs(o.x - f.x), dir = Math.sign(o.x - f.x) || 1;
+    let lead = 0, clip;
+    if (p) {
+      clip = p.clip;
+      f.rig.timeScale = 1;
+      lead = Math.max(0, p.impact - f.rig.time);
+      if (lead > 0.06) lead = 0.06;            // close enough: land it now
+    } else {
+      const ko = ev && ev.type === 'ko';
+      clip = chooseMove(f.kit, ko ? 'uppercut' : type, { window: 0.12, opener: ko, heavy: hurt, recent: f.recent });
+      f.recent = [clip, ...f.recent].slice(0, 3);
+      lead = this.launchNow(f, o, clip, 0.12);
+    }
+    const m = clipMeta(clip);
+    // no root travel and out of reach? close the gap so the hit connects
+    const reach = Math.max(30, m.reach || 50) * f.k + BODY_R;
+    if (landed && dist > reach + 0.35 && !(p && p.rm > 0)) f.kb += dir * impulseFor(dist - reach, Math.max(0.08, lead));
+    const hit = () => {
+      if (landed) {
+        this.reactTo(o, m, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko' });
+        this.impactFx(o.idx, hurt);
+      } else {
+        if (!(p && p.guarded) && !FROZEN.has(o.anim)) o.guard();
+        this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
+        o.kb += -dir * 1.6;
+      }
+    };
+    if (lead > 0.02) this.later(lead * 1000, hit); else hit();
+  }
+
   // ---- specials ----
 
-  doFireball(f, o) {
-    f.play('cast');
+  doFireball(f, o, p) {
+    let release = 180, flight = null;
+    if (f.rig) {
+      const sp = f.kit.special;
+      if (p) release = 0;
+      else release = this.launchNow(f, o, sp.clip, 0.15, 'cast', sp.impact) * 1000;
+      flight = 0.45;
+    } else f.play('cast');
     sfx.fireball();
     const color = new THREE.Color(f.def.accent);
     this.director.kick({ orbit: -f.facing * 0.08 });
-    this.later(180, () => {
-      const from = f.handWorld(f.facing > 0 ? 1 : -1);
+    this.later(release, () => {
+      const sp = f.kit.special, m = f.rig && clipMeta(sp.clip);
+      const from = f.rig ? f.limbWorld(sp.from === 'head' ? 'HEAD' : m.limb || 'RH') : f.handWorld(f.facing > 0 ? 1 : -1);
       const core = new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.2, 1),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending })
@@ -229,7 +382,7 @@ export class Arena {
       core.position.copy(from);
       this.scene.add(core, light);
       const dist = Math.abs(o.x - f.x);
-      this.projectiles.push({ mesh: core, light, from, victim: o, caster: f, t: 0, dur: clamp(dist / 10, 0.18, 0.6), color: color.getHex() });
+      this.projectiles.push({ mesh: core, light, from, victim: o, caster: f, t: 0, dur: flight || clamp(dist / 10, 0.18, 0.6), color: color.getHex() });
     });
   }
 
@@ -253,13 +406,31 @@ export class Arena {
       this.director.setMode('fight', { snap: 0.35 });
       this.director.kick({ fov: -2, roll: f.facing * 0.04 });
       this.particles.burst(new THREE.Vector3(f.x, 1.1, f.z), 30, { color: f.def.accent, speed: 2.4, life: 0.5, gravity: -1 });
+      if (f.rig) {
+        const clip = f.kit.special.clip;
+        const lead = this.launchNow(f, o, clip, 0.13, 'strike', f.kit.special.impact);
+        this.later(lead * 1000, () => { this.reactTo(o, clipMeta(clip), { hurt: true }); this.impactFx(o.idx, true); sfx.bigHit(); });
+        return;
+      }
       f.startStrike('backfist');
       this.later(110, () => { this.impactFx(o.idx, true); sfx.bigHit(); });
     });
   }
 
-  doFlyingKick(f, o) {
+  doFlyingKick(f, o, p) {
     const dist = Math.abs(o.x - f.x), dir = Math.sign(o.x - f.x) || 1;
+    if (f.rig) {
+      const sp = f.kit.special;
+      const lead = p ? Math.max(0, p.impact - f.rig.time) / Math.max(0.5, f.rig.cur.timeScale)
+        : this.launchNow(f, o, sp.clip, 0.3, 'flying', sp.impact);
+      sfx.whoosh();
+      this.director.kick({ fov: 2.5 });
+      this.later(lead * 1000, () => {
+        this.reactTo(o, clipMeta(sp.clip), { hurt: true });
+        this.impactFx(o.idx, true); sfx.bigHit();
+      });
+      return;
+    }
     f.play('flying');
     f.kb += dir * impulseFor(Math.max(0, dist - MELEE * 0.8), 0.25);
     sfx.whoosh();
@@ -267,9 +438,14 @@ export class Arena {
     this.later(240, () => { this.impactFx(o.idx, true); sfx.bigHit(); });
   }
 
-  doShockwave(f, o) {
-    f.play('slam');
-    this.later(360, () => {
+  doShockwave(f, o, p) {
+    let slamAt = 360;
+    if (f.rig) {
+      const sp = f.kit.special;
+      slamAt = 1000 * (p ? Math.max(0, p.impact - f.rig.time) / Math.max(0.5, f.rig.cur.timeScale)
+        : this.launchNow(f, o, sp.clip, 0.33, 'slam', sp.impact));
+    } else f.play('slam');
+    this.later(slamAt, () => {
       const pos = new THREE.Vector3(f.x, 0.04, f.z);
       this.spawnRing(pos, f.def.accent);
       this.particles.burst(pos, 30, { color: 0xcabb99, speed: 3, life: 0.7, gravity: 4, rise: 1.6 });
@@ -319,7 +495,7 @@ export class Arena {
   knockdown(loserIdx) {
     const l = this.fighters[loserIdx];
     l.play('down');
-    l.kb += Math.sign(l.x - this.fighters[1 - loserIdx].x) * 5;
+    l.kb += Math.sign(l.x - this.fighters[1 - loserIdx].x) * (l.rig ? 1.2 : 5);
     this.flash = 0.9;
     this.slowmo = 0.22;
     this.later(1500, () => { this.slowmo = 1; });
@@ -353,6 +529,7 @@ export class Arena {
     let sdt = dt * this.slowmo;
     if (this.hitstop > 0) { this.hitstop -= dt; sdt *= 0.04; }
     this.time += sdt;
+    this.clock += dt;
     const [a, b] = this.fighters;
     if (a && b) {
       if (this.mode === 'fight') this.updateMovement(sdt);
@@ -447,15 +624,27 @@ export class Arena {
       const spd = 0.8 + (f.def.speed || 70) / 200;  // 1.03 .. 1.29
       let desired = 0, accel = 10;
       const mine = this.antic && this.antic.by === f.idx ? this.antic : null;
+      const P = this.plan && this.plan.launched ? this.plan : null;   // clip attack in flight
+      const myP = P && P.ev.by === f.idx && f.plan === P && f.rig && f.rig.id === P.clip ? P : null;
 
-      if (mine && mine.inSec < 0.5) {
+      if (myP && f.rig.time < myP.impact) {
+        // wind-up in progress: root motion carries the lunge; make up
+        // whatever is still missing so the impact frame meets the target
+        const frac = clamp((f.rig.time - myP.start) / Math.max(0.01, myP.impact - myP.start), 0, 1);
+        const need = dist - myP.reach - myP.travel * myP.rm * (1 - frac);
+        const tImp = mine ? Math.max(0.1, mine.inSec + myP.delay) : 0.3;
+        desired = Math.abs(need) > 0.05 ? dir * clamp(need / tImp, -3, 10) : 0;
+        accel = 20;
+      } else if (P && P.ev.by !== f.idx && !FROZEN.has(f.anim) && mine == null) {
+        desired = 0; // stand in for the incoming blow
+      } else if (mine && mine.inSec < Math.max(0.5, (P || this.plan || {}).impact || 0)) {
         // set up the scripted attack
         if (mine.kind === 'ranged') {
           if (dist < 2.8) desired = -dir * 6 * spd;
         } else if (mine.kind === 'flying') {
           if (dist < 2.2) desired = -dir * 5;
-        } else if (mine.kind === 'melee') {
-          const need = dist - MELEE;
+        } else if (mine.kind === 'melee' || (mine.range && mine.kind === 'flying')) {
+          const need = dist - (mine.range || MELEE);
           if (need > 0.05) {
             const v = need / Math.max(mine.inSec, 0.08);
             desired = dir * Math.min(v * 1.2, 15);
@@ -488,7 +677,9 @@ export class Arena {
         if (dist > this.maxSep) desired = dir * 4;
       }
       f.engaged = !!(mine && mine.inSec < 0.6) || !!(this.antic && this.antic.inSec < 0.6);
-      if (BUSY.has(f.anim) && f.anim !== 'dash' && f.anim !== 'backdash') desired *= 0.25;
+      if (myP) {
+        if (f.rig.time >= myP.impact) desired = 0;     // recovery: hold ground
+      } else if (BUSY.has(f.anim) && f.anim !== 'dash' && f.anim !== 'backdash') desired *= 0.25;
       this.integrate(f, dt, desired, accel);
 
       // edge handling: cornered fighters push off or jump out

@@ -1,14 +1,23 @@
-// Fighter: procedural pose animator on a named driver rig, optionally wearing
-// an imported skinned model (js/models.js retargets the driver onto it).
+// Fighter: animates a character two ways.
+//
+//  * Clip mode (models): once the fighter wears an imported model and the
+//    Mixamo library (js/anim.js) is loaded, every state plays motion-captured
+//    clips from the fighter's style kit (js/styles.js), retargeted onto the
+//    model and mirrored for the fighter on the right.
+//  * Procedural mode: a pose animator on a named driver rig, which
+//    js/models.js retargets onto the model, or the primitive caricature rig
+//    on its own. It covers the moments before the model or clips arrive.
 //
 // Positions are WORLD units: x along the stage, y = airborne height,
 // z = depth. The arena's movement director owns x/vx/y/vy; this class only
 // turns state into poses.
 
 import * as THREE from '../vendor/three.module.min.js';
-import { clamp, rand } from './util.js';
+import { clamp, rand, randRange, pick } from './util.js';
 import { buildCharacterRig } from './charrig.js';
 import { Retargeter } from './models.js';
+import { LIB, loadAnimLib, ClipRig, AnimRetarget, clipMeta } from './anim.js';
+import { kitFor, chooseMove } from './styles.js';
 
 export const DUR = {
   strike: 0.34, hit: 0.3, hurt: 0.5, block: 0.4, down: 0.9,
@@ -42,6 +51,10 @@ export class Fighter {
     this.targets = {};
     this.rate = 14;
     this.retarget = null;
+    this.kit = kitFor(def);
+    this.rig = null;          // ClipRig once clip mode is on
+    this.animLen = null;      // busy duration of the current clip state
+    this.recent = [];
   }
 
   // ---------------------------------------------------------------- model
@@ -49,11 +62,160 @@ export class Fighter {
     const L = this.def.look || {};
     this.root.scale.setScalar(1);
     this.root.traverse(o => { if (o.isMesh) o.visible = false; }); // hide primitives
+    const rest = [];
+    model.traverse(o => { if (o.isBone) rest.push([o, o.position.clone(), o.quaternion.clone()]); });
     this.retarget = new Retargeter(model, this, 1.92 * (L.h || 1));
     this.root.add(this.retarget.container);
     this.mats = [];
     model.traverse(o => { if (o.isMesh) this.mats.push(o.material); });
     this.hasModel = true;
+    const enable = () => { if (this.retarget && this.retarget.model === model && !this.rig) this.enableClips(model, rest); };
+    if (LIB) enable();
+    else loadAnimLib().then(enable).catch(err => console.warn('animation library failed to load', err));
+  }
+
+  // ---------------------------------------------------------------- clips
+  enableClips(model, rest) {
+    this.rig = new ClipRig();
+    this.art = new AnimRetarget(this.rig, model, this.retarget.container, rest);
+    this.retarget.container.position.set(0, 0, 0);
+    this.lunge = 0;
+    this.onState(this.anim);
+  }
+
+  // world metres per source centimetre (root motion, reach)
+  get k() { return this.art ? this.art.scale * this.retarget.container.scale.x * this.root.scale.x : 0.0075; }
+
+  // Play a clip as an action state (strike, hit, block, cast...). `len` is
+  // how long the state stays busy (defaults to the rest of the clip).
+  act(id, { state = 'strike', ts = 1, start = 0, rm = 0, fade = 0.12, len, loop = false, hipsY = true } = {}) {
+    if (!this.rig || !this.rig.play(id, { fade, loop, ts, start, rm, hipsY })) return false;
+    this.anim = state;
+    this.animT = 0;
+    const m = clipMeta(id);
+    this.animLen = len != null ? len : loop ? Infinity : (m.dur - start) / ts;
+    return true;
+  }
+
+  // Hit reaction. level: 0 light, 1 medium, 2 big; zone: 'head' | 'body'.
+  react(level, zone = 'head') {
+    const tier = level >= 2 ? 'big' : level === 1 && zone === 'head' ? 'med' : level === 1 ? 'big' : 'light';
+    const ids = Object.keys(LIB.clips).filter(id => id.startsWith(`hit_${zone}_${tier}`) && id !== this.rig.id);
+    const id = pick(ids);
+    this.act(id, { state: level >= 2 ? 'hurt' : 'hit', fade: 0.06, len: clipMeta(id).dur * 0.8 });
+  }
+
+  // Guard or evade a blocked strike.
+  guard() {
+    const K = this.kit;
+    const id = rand() < 0.3 && K.dodge.length ? pick(K.dodge) : pick(K.block);
+    this.act(id, { state: 'block', start: 0.04, fade: 0.08, len: Math.min(0.75, clipMeta(id).dur * 0.8) });
+  }
+
+  // Knockout fall (root motion carries the body back).
+  fall(id) {
+    id = id || pick(['ko_back', 'ko_spin', 'ko_crumple', 'ko_back', 'ko_kneel']);
+    this.act(id, { state: 'down', rm: 1, fade: 0.08, len: Infinity });
+  }
+
+  // Map a state change to a clip (states the arena doesn't drive with act()).
+  onState(anim) {
+    if (!this.rig) return;
+    const K = this.kit, r = this.rig;
+    const once = (id, o = {}) => { r.play(id, o); this.animLen = (clipMeta(id).dur - (o.start || 0)) / (o.ts || 1); };
+    switch (anim) {
+      case 'dash': r.play('step_fwd', { loop: true, ts: 2.4, fade: 0.08 }); break;
+      case 'backdash': r.play('step_back', { loop: true, ts: 2.4, fade: 0.08 }); break;
+      case 'land': r.play('jump', { start: 0.86, ts: 1.3, fade: 0.08 }); this.animLen = 0.22; break;
+      case 'taunt': {
+        const id = !this.introDone && K.intro ? K.intro : pick(K.taunt);
+        this.introDone = true;
+        once(id, { fade: 0.2 });
+        this.animLen = Math.min(this.animLen, 2.6);
+        break;
+      }
+      case 'hit': this.react(0); break;
+      case 'hurt': this.react(2); break;
+      case 'block': this.guard(); break;
+      case 'down':
+        if (!(r.meta && r.meta.cat === 'ko')) this.fall();
+        this.anim = 'down';
+        break;
+      case 'launched': r.play('ko_spin', { fade: 0.1 }); break;
+      case 'win': r.play(pick(K.victory), { loop: true, fade: 0.3 }); break;
+      case 'warmup':
+        this.wuIdle = false;
+        this.wuLeft = randRange(0, 2.5);
+        this.wuI = Math.floor(rand() * K.warmup.length);
+        r.play(K.lobby, { loop: true, fade: 0.3, start: rand() * 2 });
+        break;
+      case 'cast': case 'flying': case 'slam': {
+        const sp = K.special, m = clipMeta(sp.clip);
+        if (r.id !== sp.clip) once(sp.clip, { start: Math.max(0, (sp.impact || m.impact || 0.3) - 0.15), fade: 0.08 });
+        this.animLen = Math.min(this.animLen, 0.9);
+        break;
+      }
+      case 'strike': {
+        const id = chooseMove(K, this.strikeType, { window: 0.2, recent: this.recent });
+        const m = clipMeta(id);
+        const start = Math.max(0, m.impact - 0.11);
+        r.play(id, { start, fade: 0.06 });
+        this.animLen = 0.11 + 0.45;
+        break;
+      }
+      // idle / walk / warmup loops are chosen every frame in drive()
+    }
+  }
+
+  // Clip-mode frame: pick loops for continuous states, advance the mixer,
+  // apply root motion.
+  drive(dt) {
+    const K = this.kit, r = this.rig, st = this.anim;
+    this.rootY = 0; this.yawOffset = 0; this.lunge = 0;
+    if (st === 'idle' || st === 'walk') {
+      if (this.y > 0.05) {
+        if (r.id !== 'jump') r.play('jump', { start: 0.36, ts: 0.8, hipsY: false, fade: 0.1 });
+      } else if (st === 'walk') {
+        const fwd = Math.sign(this.vx) === this.facing;
+        const id = fwd ? 'step_fwd' : 'step_back';
+        const ts = clamp(Math.abs(this.vx) / ((fwd ? 165 : 136) * this.k), 0.6, 2.6);
+        if (r.id !== id) r.play(id, { loop: true, fade: 0.2, ts });
+        else r.timeScale = ts;
+      } else {
+        const id = this.faceCam ? K.lobby : K.idle;
+        if (r.id !== id || !r.loop) r.play(id, { loop: true, fade: 0.25, start: rand() * 1.5 });
+      }
+    } else if (st === 'warmup') {
+      this.wuLeft -= dt;
+      if (this.wuLeft <= 0) {
+        if (this.wuIdle) {
+          const id = K.warmup[this.wuI++ % K.warmup.length];
+          r.play(id, { fade: 0.3 });
+          this.wuLeft = clipMeta(id).dur - 0.3;
+        } else {
+          r.play(K.lobby, { loop: true, fade: 0.3 });
+          this.wuLeft = randRange(2.2, 4);
+        }
+        this.wuIdle = !this.wuIdle;
+      }
+    } else if (st === 'launched') {
+      const p = clamp(this.animT / 1.6, 0, 1);
+      this.rootY = Math.sin(Math.min(p * 1.25, 1) * Math.PI) * 2.2;
+      this.yawOffset = p * 9;
+      if (p > 0.35 && this.dissolve === 0) this.dissolve = 0.001;
+    }
+
+    const d = r.update(dt);
+    if (d && d[1]) {
+      let dx = this.facing * d[1] * this.k;
+      const o = this.opp;
+      if (o && Math.sign(o.x - this.x) === Math.sign(dx)) {
+        // never carry through the opponent
+        const room = Math.max(0, Math.abs(o.x - this.x) - 0.5);
+        dx = Math.sign(dx) * Math.min(Math.abs(dx), room);
+      }
+      this.x += dx;
+    }
   }
 
   // effect anchors (model bones when available)
@@ -70,14 +232,31 @@ export class Fighter {
     return this.arms[side].el.getWorldPosition(out);
   }
 
+  // effect anchor for a clip limb ('RH', 'LF', 'HEAD'...), mirror-aware
+  limbWorld(limb, out = new THREE.Vector3()) {
+    if (!this.retarget || !limb) return this.chestWorld(out);
+    if (limb === 'HEAD') return this.headWorld(out);
+    const mir = this.rig && !this.faceCam && this.facing < 0;
+    const left = (limb[0] === 'L') !== mir;
+    const part = { H: 'Hand', F: 'Foot', K: 'Leg', E: 'ForeArm' }[limb[1]] || 'Hand';
+    return this.retarget.boneWorld((left ? 'Left' : 'Right') + part, out);
+  }
+
   startStrike(type) {
     this.anim = 'strike';
     this.animT = 0;
+    this.animLen = null;
     this.strikeType = type;
     this.strikeSide = this.strikeSide === 1 ? -1 : 1;
+    this.onState('strike');
   }
 
-  play(anim) { this.anim = anim; this.animT = 0; }
+  play(anim) {
+    this.anim = anim;
+    this.animT = 0;
+    this.animLen = null;
+    this.onState(anim);
+  }
 
   setT(bone, x, y, z) { this.targets[bone] = { x, y, z }; }
 
@@ -91,10 +270,13 @@ export class Fighter {
       for (const m of this.mats) { m.transparent = true; m.opacity = 1 - this.dissolve; }
       if (this.dissolve >= 1) this.root.visible = false; // shadow maps ignore opacity
     }
-    if (BUSY.has(this.anim) && this.animT > DUR[this.anim]) this.play('idle');
+    if (BUSY.has(this.anim) && this.animT > (this.animLen != null ? this.animLen : DUR[this.anim])) this.play('idle');
 
-    this.computePose();
-    this.applyTargets(dt);
+    if (this.rig) this.drive(dt);
+    else {
+      this.computePose();
+      this.applyTargets(dt);
+    }
 
     const dir = this.facing;
     this.root.position.set(this.x + this.lunge * dir, this.y + (this.rootY || 0), this.z);
@@ -103,7 +285,10 @@ export class Fighter {
     this.smYaw += (yaw - this.smYaw) * Math.min(1, dt * 12);
     this.root.rotation.y = this.smYaw + this.yawOffset;
 
-    if (this.retarget) this.retarget.apply();
+    if (this.rig) {
+      this.root.updateMatrixWorld(true);
+      this.art.apply(!this.faceCam && this.facing < 0);
+    } else if (this.retarget) this.retarget.apply();
   }
 
   computePose() {

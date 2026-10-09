@@ -1,0 +1,596 @@
+{
+  "_doc": "Animation catalogue: id -> source clip (relative to the unzipped 'Polyarena Animations' folder). cat: idle|move|block|hit|ko|strike|special|throw|grapple|emote. limb (strikes): LH RH LF RF LK RK LE RE HEAD. metric: reach (default for hands, max distance from chest) | fwd (default for feet  | up (max height). impact: manual override in seconds. loop: true for cycles.",
+  "idle_boxer": {
+    "file": "Idles/Bouncing Fight Idle.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_brawler": {
+    "file": "Idles/Fight Idle.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_kickboxer": {
+    "file": "Idles/Fighting Idle.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_feral": {
+    "file": "Idles/Idle-4.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_mma": {
+    "file": "Idles/Idle-5.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_proud": {
+    "file": "Idles/Orc Idle-2.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_martial": {
+    "file": "Idles/Ready Idle.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "idle_relaxed": {
+    "file": "Idles/Breathing Idle-2.fbx",
+    "cat": "idle",
+    "loop": true
+  },
+  "step_fwd": {
+    "file": "Movement/Medium Step Forward.fbx",
+    "cat": "move",
+    "loop": true
+  },
+  "step_back": {
+    "file": "Movement/Step Backward.fbx",
+    "cat": "move",
+    "loop": true
+  },
+  "jump": {
+    "file": "Movement/Jumping-2.fbx",
+    "cat": "move"
+  },
+  "block_high": {
+    "file": "Blocks&Defense/Block.fbx",
+    "cat": "block"
+  },
+  "block_parry": {
+    "file": "Blocks&Defense/Blocking.fbx",
+    "cat": "block"
+  },
+  "block_forearm": {
+    "file": "Blocks&Defense/Body Block.fbx",
+    "cat": "block"
+  },
+  "block_cover": {
+    "file": "Blocks&Defense/Center Block-2.fbx",
+    "cat": "block"
+  },
+  "block_inward": {
+    "file": "Blocks&Defense/Inward Block-2.fbx",
+    "cat": "block"
+  },
+  "dodge_lean": {
+    "file": "Blocks&Defense/Left Block-2.fbx",
+    "cat": "block"
+  },
+  "dodge_duck": {
+    "file": "Blocks&Defense/Right Block-2.fbx",
+    "cat": "block"
+  },
+  "dodge_slip": {
+    "file": "Blocks&Defense/Right Block-3.fbx",
+    "cat": "block"
+  },
+  "hit_head_light1": {
+    "file": "Impacts&Hits/Light Hit To Head.fbx",
+    "cat": "hit"
+  },
+  "hit_head_light2": {
+    "file": "Impacts&Hits/Light Hit To Head-2.fbx",
+    "cat": "hit"
+  },
+  "hit_head_light3": {
+    "file": "Impacts&Hits/Head Hit-4.fbx",
+    "cat": "hit"
+  },
+  "hit_head_light4": {
+    "file": "Impacts&Hits/Head Hit-6.fbx",
+    "cat": "hit"
+  },
+  "hit_head_light5": {
+    "file": "Impacts&Hits/Head Hit-7.fbx",
+    "cat": "hit"
+  },
+  "hit_head_med1": {
+    "file": "Impacts&Hits/Medium Hit To Head.fbx",
+    "cat": "hit"
+  },
+  "hit_head_med2": {
+    "file": "Impacts&Hits/Medium Hit To Head-2.fbx",
+    "cat": "hit"
+  },
+  "hit_head_med3": {
+    "file": "Impacts&Hits/Head Hit-3.fbx",
+    "cat": "hit"
+  },
+  "hit_head_med4": {
+    "file": "Impacts&Hits/Head Hit-5.fbx",
+    "cat": "hit"
+  },
+  "hit_head_big1": {
+    "file": "Impacts&Hits/Big Hit To Head.fbx",
+    "cat": "hit"
+  },
+  "hit_head_big2": {
+    "file": "Impacts&Hits/Big Hit To Head-2.fbx",
+    "cat": "hit"
+  },
+  "hit_head_big3": {
+    "file": "Impacts&Hits/Big Hit To Head-3.fbx",
+    "cat": "hit"
+  },
+  "hit_head_big4": {
+    "file": "Impacts&Hits/Head Hit-2.fbx",
+    "cat": "hit"
+  },
+  "hit_head_big5": {
+    "file": "Impacts&Hits/Head Hit-8.fbx",
+    "cat": "hit"
+  },
+  "hit_head_big6": {
+    "file": "Impacts&Hits/Head Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_light1": {
+    "file": "Impacts&Hits/Stomach Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_light2": {
+    "file": "Impacts&Hits/Rib Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_light3": {
+    "file": "Impacts&Hits/Kidney Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_big1": {
+    "file": "Impacts&Hits/Big Stomach Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_big2": {
+    "file": "Impacts&Hits/Big Rib Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_big3": {
+    "file": "Impacts&Hits/Big Kidney Hit.fbx",
+    "cat": "hit"
+  },
+  "hit_body_big4": {
+    "file": "Impacts&Hits/Hit To Body.fbx",
+    "cat": "hit"
+  },
+  "hit_body_big5": {
+    "file": "Impacts&Hits/Hit To Body-2.fbx",
+    "cat": "hit"
+  },
+  "hit_body_big6": {
+    "file": "Impacts&Hits/Hit To Body-3.fbx",
+    "cat": "hit"
+  },
+  "hit_thrown": {
+    "file": "Body Throws/Getting Thrown.fbx",
+    "cat": "hit"
+  },
+  "ko_back": {
+    "file": "Impacts&Hits/Knocked Out.fbx",
+    "cat": "ko"
+  },
+  "ko_kneel": {
+    "file": "Impacts&Hits/Knocked Out-2.fbx",
+    "cat": "ko"
+  },
+  "ko_crumple": {
+    "file": "Impacts&Hits/Stunned.fbx",
+    "cat": "ko"
+  },
+  "ko_spin": {
+    "file": "Impacts&Hits/Shoulder Hit And Fall.fbx",
+    "cat": "ko"
+  },
+  "ko_takedown": {
+    "file": "Takedowns/Double Leg Takedown - Victim.fbx",
+    "cat": "ko"
+  },
+  "jab": {
+    "file": "Punches/Punching-3.fbx",
+    "cat": "strike",
+    "limb": "LH"
+  },
+  "jab_fast": {
+    "file": "Punches/Punching-5.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "cross": {
+    "file": "Punches/Cross Punch.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "lunge_straight": {
+    "file": "Punches/Punching-6.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "lunge_overhand": {
+    "file": "Punches/Punching-4.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "hook_lead": {
+    "file": "Punches/Hook.fbx",
+    "cat": "strike",
+    "limb": "LH"
+  },
+  "hook_short": {
+    "file": "Punches/Hook-3.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "hook_body": {
+    "file": "Punches/Hook-2.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "haymaker": {
+    "file": "Punches/Hook Punch.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "haymaker2": {
+    "file": "Punches/Hook Punch-2.fbx",
+    "cat": "strike",
+    "limb": "RH"
+  },
+  "overhand": {
+    "file": "Punches/Right Hook-2.fbx",
+    "cat": "strike",
+    "limb": "RH",
+    "impact": 0.38
+  },
+  "chest_jabs": {
+    "file": "Punches/Punching-7.fbx",
+    "cat": "strike",
+    "limb": "LH"
+  },
+  "body_jab": {
+    "file": "Punches/Punching-8.fbx",
+    "cat": "strike",
+    "limb": "LH"
+  },
+  "uppercut": {
+    "file": "Punches/Uppercut.fbx",
+    "cat": "strike",
+    "limb": "RH",
+    "metric": "up",
+    "impact": 0.33
+  },
+  "superman": {
+    "file": "Punches/Flying Knee Punch Combo.fbx",
+    "cat": "strike",
+    "limb": "LH"
+  },
+  "elbow_fast": {
+    "file": "Elbows/Elbow Punching.fbx",
+    "cat": "strike",
+    "limb": "RE",
+    "metric": "fwd"
+  },
+  "elbow_step": {
+    "file": "Elbows/Illegal Elbow Punch.fbx",
+    "cat": "strike",
+    "limb": "RE",
+    "metric": "fwd"
+  },
+  "elbow_step2": {
+    "file": "Elbows/Illegal Elbow Punch-2.fbx",
+    "cat": "strike",
+    "limb": "RE",
+    "metric": "fwd"
+  },
+  "elbow_step3": {
+    "file": "Elbows/Illegal Elbow Punch-3.fbx",
+    "cat": "strike",
+    "limb": "RE",
+    "metric": "fwd"
+  },
+  "knee": {
+    "file": "Knees/Illegal Knee.fbx",
+    "cat": "strike",
+    "limb": "RK",
+    "metric": "fwd"
+  },
+  "knee_lead": {
+    "file": "Knees/Knee Kick Lead-2.fbx",
+    "cat": "strike",
+    "limb": "LK",
+    "metric": "fwd"
+  },
+  "headbutt": {
+    "file": "Headbutts/Illegal Headbutt.fbx",
+    "cat": "strike",
+    "limb": "HEAD",
+    "metric": "fwd"
+  },
+  "kick_snap": {
+    "file": "Kicks/Kicking-2.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "kick_front": {
+    "file": "Kicks/Kicking.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_push": {
+    "file": "Kicks/Kicking-5.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_low": {
+    "file": "Kicks/Kicking-4.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_low2": {
+    "file": "Kicks/Mma Kick-3.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_mid": {
+    "file": "Kicks/Mma Kick-4.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_lead": {
+    "file": "Kicks/Mma Kick-2.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "kick_round": {
+    "file": "Kicks/Roundhouse Kick.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_high": {
+    "file": "Kicks/Mma Kick.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_high2": {
+    "file": "Kicks/Mma Kick-5.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_axe": {
+    "file": "Kicks/Mma Kick-6.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_side": {
+    "file": "Kicks/Side Kick.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_side_low": {
+    "file": "Kicks/Side Kick-2.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_spin_hook": {
+    "file": "Kicks/Kicking-7.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_jump_scissor": {
+    "file": "Kicks/Kicking-3.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "kick_jump_front": {
+    "file": "Kicks/Kicking-6.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_jump_switch": {
+    "file": "Kicks/Kicking-8.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "kick_jump_high": {
+    "file": "Kicks/Kicking-9.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "kick_crescent": {
+    "file": "Kicks/Inside Crescent Kick.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "butterfly": {
+    "file": "Kicks/Butterfly Twirl.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "flip_kick": {
+    "file": "Kicks/Spin Flip Kick.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "drop_kick": {
+    "file": "Kicks/Drop Kick.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "up"
+  },
+  "flying_kick": {
+    "file": "Kicks/Flying Kick.fbx",
+    "cat": "strike",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "sweep_spin": {
+    "file": "Kicks/Leg Sweep-2.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "sweep_drop": {
+    "file": "Kicks/Leg Sweep-3.fbx",
+    "cat": "strike",
+    "limb": "RF",
+    "metric": "fwd"
+  },
+  "throw_backhand": {
+    "file": "Object Throws/Frisbee Throw.fbx",
+    "cat": "throw",
+    "limb": "RH"
+  },
+  "throw_overhand": {
+    "file": "Object Throws/Throw Object-2.fbx",
+    "cat": "throw",
+    "limb": "RH"
+  },
+  "cast_big": {
+    "file": "Specials/Casting Spell.fbx",
+    "cat": "special",
+    "limb": "RH"
+  },
+  "cast_push": {
+    "file": "Specials/Magic Heal.fbx",
+    "cat": "special",
+    "limb": "RH"
+  },
+  "cast_crouch": {
+    "file": "Specials/Spell Casting.fbx",
+    "cat": "special",
+    "limb": "RH"
+  },
+  "cast_two_hand": {
+    "file": "Specials/Two Hand Spell Casting.fbx",
+    "cat": "special",
+    "limb": "RH",
+    "impact": 1.4
+  },
+  "cast_wide": {
+    "file": "Specials/Wide Arm Spell Casting.fbx",
+    "cat": "special",
+    "limb": "RH",
+    "impact": 1.45
+  },
+  "flying_throw": {
+    "file": "Body Throws/Flying Shoulder Throw.fbx",
+    "cat": "special",
+    "limb": "LF",
+    "metric": "fwd"
+  },
+  "takedown": {
+    "file": "Takedowns/Double Leg Takedown - Attacker-2.fbx",
+    "cat": "grapple",
+    "limb": "HEAD",
+    "impact": 0.6
+  },
+  "emote_angry": {
+    "file": "Emotes&Taunts/Angry Gesture.fbx",
+    "cat": "emote"
+  },
+  "emote_arm_stretch": {
+    "file": "Emotes&Taunts/Arm Stretching-2.fbx",
+    "cat": "emote"
+  },
+  "emote_neck_stretch": {
+    "file": "Emotes&Taunts/Neck Stretching.fbx",
+    "cat": "emote"
+  },
+  "emote_point_lunge": {
+    "file": "Emotes&Taunts/Pointing Gesture-2.fbx",
+    "cat": "emote"
+  },
+  "emote_point": {
+    "file": "Emotes&Taunts/Pointing Gesture.fbx",
+    "cat": "emote"
+  },
+  "emote_bow": {
+    "file": "Emotes&Taunts/Quick Formal Bow.fbx",
+    "cat": "emote"
+  },
+  "emote_reach": {
+    "file": "Emotes&Taunts/Reaching Out.fbx",
+    "cat": "emote"
+  },
+  "emote_salute": {
+    "file": "Emotes&Taunts/Salute.fbx",
+    "cat": "emote"
+  },
+  "emote_fist_shake": {
+    "file": "Emotes&Taunts/Shake Gesture.fbx",
+    "cat": "emote"
+  },
+  "emote_battlecry": {
+    "file": "Emotes&Taunts/Standing Taunt Battlecry.fbx",
+    "cat": "emote"
+  },
+  "emote_chest_thump": {
+    "file": "Emotes&Taunts/Standing Taunt Chest Thump.fbx",
+    "cat": "emote"
+  },
+  "emote_come_on": {
+    "file": "Emotes&Taunts/Taunt Gesture.fbx",
+    "cat": "emote"
+  },
+  "emote_headbang": {
+    "file": "Emotes&Taunts/Taunt-2.fbx",
+    "cat": "emote"
+  },
+  "emote_sway": {
+    "file": "Emotes&Taunts/Taunt-3.fbx",
+    "cat": "emote"
+  },
+  "emote_shimmy": {
+    "file": "Emotes&Taunts/Taunt.fbx",
+    "cat": "emote"
+  },
+  "emote_flourish": {
+    "file": "Emotes&Taunts/Weight Shift Gesture.fbx",
+    "cat": "emote"
+  },
+  "emote_whatever": {
+    "file": "Emotes&Taunts/Whatever Gesture.fbx",
+    "cat": "emote"
+  }
+}

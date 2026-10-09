@@ -1,9 +1,10 @@
-// Polyarena service worker: precache the app shell, serve cache-first with
-// background refresh so the game works offline once visited. Character
-// models (assets/models/*.glb, ~1 MB each) are cached on first use rather
-// than precached, to keep the first load light.
+// Polyarena service worker: precache the app shell (including the ~0.9 MB
+// motion-capture animation library), serve cache-first with background
+// refresh so the game works offline once visited. Character models
+// (assets/models/*.glb, ~1 MB each) are cached on first use rather than
+// precached, to keep the first load light.
 
-const CACHE = 'polyarena-v7';
+const CACHE = 'polyarena-v8';
 const SHELL = [
   '.',
   'index.html',
@@ -23,6 +24,8 @@ const SHELL = [
   'js/fighter.js',
   'js/charrig.js',
   'js/models.js',
+  'js/anim.js',
+  'js/styles.js',
   'js/portraits.js',
   'js/stages.js',
   'js/table.js',
@@ -30,6 +33,8 @@ const SHELL = [
   'js/bots.js',
   'js/fx.js',
   'js/audio.js',
+  'assets/anims/anims.json',
+  'assets/anims/anims.bin',
   'vendor/three.module.min.js',
   'vendor/three.core.min.js',
   'vendor/jsm/loaders/GLTFLoader.js',

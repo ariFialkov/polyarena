@@ -17,6 +17,7 @@ import { Hud, shortName } from './hud.js';
 import { makeBots, scheduleTableBets, chooseTableBet, maybeLiveBet } from './bots.js';
 import { PortraitStudio } from './portraits.js';
 import { loadModel } from './models.js';
+import { loadAnimLib } from './anim.js';
 import { FX } from './fx.js';
 import { sfx, setSound, soundOn } from './audio.js';
 
@@ -96,6 +97,7 @@ function boot() {
   });
 
   // warm the model cache for everyone who has one
+  loadAnimLib().catch(err => console.warn('animation library failed to load', err));
   for (const f of FIGHTERS) if (f.model) loadModel(f.model).catch(() => {});
 
   hud.setBankroll(S.bankroll);
@@ -513,7 +515,7 @@ function processRoundEvents() {
     const ev = evs[S.evIdx++];
     switch (ev.type) {
       case 'strike': {
-        arena.strike(ev.by, ev.strike, true);
+        arena.strike(ev.by, ev.strike, true, false, ev);
         if (SPECIALS.includes(ev.strike)) {
           const f = ev.by === 0 ? S.match.A : S.match.B;
           if (ev.specialName) hud.specialBanner(ev.by, ev.specialName, shortName(f));
@@ -528,11 +530,11 @@ function processRoundEvents() {
         break;
       }
       case 'miss':
-        arena.strike(ev.by, ev.strike, false);
+        arena.strike(ev.by, ev.strike, false, false, ev);
         if (rand() < 0.5) sfx.whiff();
         break;
       case 'hurt':
-        arena.strike(ev.by, ev.strike, true, true);
+        arena.strike(ev.by, ev.strike, true, true, ev);
         sfx.bigHit();
         landHit(ev);
         break;
@@ -543,7 +545,7 @@ function processRoundEvents() {
   }
   // stream the next attack to the movement director
   const next = evs[S.evIdx];
-  if (next) arena.anticipate(next.by, (next.t - S.roundTime) / TIME_SCALE, next.strike);
+  if (next) arena.anticipate(next.by, (next.t - S.roundTime) / TIME_SCALE, next.strike, next);
   else arena.anticipate(null);
 }
 
@@ -552,7 +554,7 @@ function doKO(ev) {
   const w = o.winner, l = 1 - w;
   S.phase = 'KOSEQ';
   arena.anticipate(null);
-  arena.strike(ev.by, 'uppercut', true, true);
+  arena.strike(ev.by, 'uppercut', true, true, ev);
   sfx.bigHit();
   setTimeout(() => {
     arena.setMode('post');
