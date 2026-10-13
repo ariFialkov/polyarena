@@ -23,6 +23,7 @@ const K = {
   // big looping haymakers, almost never kicks; points his fireball.
   thump: {
     idle: 'idle_proud',
+    armOut: 0.36,  // hanging arms swing clear of the belly
     fast: ['body_jab', 'chest_jabs', 'jab'],
     power: ['haymaker', 'haymaker2', 'overhand', 'lunge_overhand'],
     kick: ['kick_low'], kickBias: 0.15,

@@ -93,6 +93,7 @@ export class Fighter {
   enableClips(model, rest) {
     this.rig = new ClipRig();
     this.art = new AnimRetarget(this.rig, model, this.retarget.container, rest);
+    this.art.armOut = this.kit.armOut || 0;
     this.retarget.container.position.set(0, 0, 0);
     this.lunge = 0;
     this.onState(this.anim);

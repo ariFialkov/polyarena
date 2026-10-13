@@ -197,6 +197,9 @@ dropkicks, sweeps, throws, casts and a takedown.
   facial bone. Hands aim along the middle finger. Mixamo lists the thumb
   first, but other rigs order their fingers differently, so aiming at the
   "first child" twisted some models' hands.
+- **Arm clearance**: a kit can set `armOut` (radians). The Don uses it so his
+  hanging arms swing out past his belly instead of sinking into it. It fades
+  out as the arm lifts, so guards, strikes and gestures are untouched.
 - **Knockdowns**: drawn by the engine (about 29% of fights have one, and it's
   a bettable market). The blow that ends a clash drops the fighter, who hits
   the canvas and gets back up while the attacker taunts. After that he's

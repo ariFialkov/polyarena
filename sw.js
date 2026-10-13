@@ -4,7 +4,7 @@
 // (assets/models/*.glb, ~1 MB each) are cached on first use rather than
 // precached, to keep the first load light.
 
-const CACHE = 'polyarena-v13';
+const CACHE = 'polyarena-v14';
 const SHELL = [
   '.',
   'index.html',

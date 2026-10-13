@@ -168,6 +168,7 @@ const strip = n => n.replace(/^(mixamorig|smartrig)[:_]?/i, '');
 const swap = n => n.startsWith('Left') ? 'Right' + n.slice(4) : n.startsWith('Right') ? 'Left' + n.slice(5) : n;
 const mirrorQ = (q, out = new THREE.Quaternion()) => out.set(q.x, -q.y, -q.z, q.w);
 const CHILD = { Hips: 'Spine', Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head', Head: 'HeadTop_End' };
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const AXIAL = new Set(['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head']);
 
 export class AnimRetarget {
@@ -227,7 +228,12 @@ export class AnimRetarget {
         if (dt && ds && !AXIAL.has(n)) R.setFromUnitVectors(dt, ds);
         return { bone: src[sn], sn, mir, QsInv: Qs.clone().invert(), RQt: R.multiply(Qt) };
       };
-      this.entries.set(b, { n: mk(n, false), m: mk(swap(n), true) });
+      const e = { n: mk(n, false), m: mk(swap(n), true) };
+      // upper arms: rest pose + direction, for the arm-clearance offset
+      if (n === 'LeftArm' || n === 'RightArm') {
+        e.arm = { side: n === 'LeftArm' ? 1 : -1, QtInv: Qt.clone().invert(), dir: dt };
+      }
+      this.entries.set(b, e);
     }
 
     this.hips = tgt.Hips;
@@ -244,6 +250,24 @@ export class AnimRetarget {
     this._q = new THREE.Quaternion(); this._w = new THREE.Quaternion(); this._p = new THREE.Quaternion();
     this._v = new THREE.Vector3();
     this._outs = new Map();
+    this.armOut = 0;
+    this._ci = new THREE.Quaternion(); this._cr = new THREE.Quaternion(); this._cq = new THREE.Quaternion();
+    this._cz = new THREE.Quaternion(); this._cd = new THREE.Vector3();
+  }
+
+  // Arm clearance (per fighter, e.g. a big belly): when an upper arm hangs
+  // down, swing it out to the side by up to `armOut` radians so the arms
+  // don't sink into the body. Fades out as the arm lifts, so guards,
+  // punches and raised-arm poses are untouched. The model's left side is +x
+  // in the character frame, so its left arm swings toward +x.
+  clearArm(arm, wq, cQ) {
+    const cInv = this._ci.copy(cQ).invert();
+    const rel = this._cr.copy(cInv).multiply(wq);                 // container-frame rotation
+    const d = this._cd.copy(arm.dir).applyQuaternion(this._cq.copy(rel).multiply(arm.QtInv));
+    const hang = Math.min(1, Math.max(0, (-d.y - 0.45) / 0.4));   // 0 raised .. 1 hanging
+    if (!hang) return;
+    const tilt = this._cz.setFromAxisAngle(Z_AXIS, arm.side * this.armOut * hang);
+    wq.copy(cQ).multiply(tilt).multiply(rel);
   }
 
   // per-bone scratch world quaternion
@@ -268,6 +292,7 @@ export class AnimRetarget {
         qs.setFromRotationMatrix((own ? v.bone : rig.bones[v.sn]).matrixWorld);   // rig root is unscaled
         if (v.mir) mirrorQ(qs, qs);
         wq.copy(cQ).multiply(qs).multiply(v.QsInv).multiply(v.RQt);
+        if (e.arm && this.armOut) this.clearArm(e.arm, wq, cQ);
         bone.quaternion.copy(parentWQ).invert().multiply(wq);
       } else {
         bone.quaternion.copy(this.restLocal.get(bone));
