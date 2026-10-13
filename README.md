@@ -9,6 +9,20 @@ the occasional Fatality.
 
 Playable on desktop and mobile, installable as a PWA, zero dependencies and no build step.
 
+## Build it
+
+There's no compile step. `./build.sh` copies just the files the game needs
+into `dist/`, ready to upload to any static host:
+
+```sh
+./build.sh          # -> dist/  (~14 MB: html, css, js, json, bin, png, svg, woff2, txt)
+```
+
+The character models are binary glTF (GLB) files stored with a `.bin`
+extension, because some hosts reject `.glb` uploads. three.js's GLTFLoader
+identifies the format by its content, not the extension. The PWA manifest
+is `manifest.json`.
+
 ## Run it
 
 Any static file server works:
@@ -230,7 +244,7 @@ with metadata in `anims.json`.
    ```
    This extracts the embedded texture (the Blender `.fbm` reference isn't readable
    on the web), welds the triangle soup into indexed geometry, renames bones and
-   writes `assets/models/<name>.glb` (~1 MB, texture at 1024²; `MAX_TEX=2048`
+   writes `assets/models/<name>.bin` (~1 MB, texture at 1024²; `MAX_TEX=2048`
    for sharper).
 3. Shrink it by about 30% with no visible change. This uses
    KHR_mesh_quantization: int8 normals, uint16 UVs, uint8 skin weights and
@@ -311,7 +325,8 @@ installed PWA and reopening) may be needed to pick up a new deploy; bump `CACHE`
 | `js/fighters.js` | Fighter bank + matchmaking |
 | `js/main.js` | Phase state machine, heat/streak tracking, timing |
 | `js/audio.js` | WebAudio-synthesized SFX (no assets) |
-| `sw.js`, `manifest.webmanifest` | PWA shell caching + install metadata |
+| `sw.js`, `manifest.json` | PWA shell caching + install metadata |
+| `build.sh` | Assembles the deployable site into `dist/` |
 | `tools/` | Dev-only FBX → GLB model converter and Mixamo clip converter |
 | `fonts/` | Bungee, Teko, Rajdhani (SIL OFL, licenses included) |
 

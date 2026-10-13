@@ -37,20 +37,10 @@ jobs:
           # Settings -> Pages -> Source: GitHub Actions.
           enablement: true
 
-      - name: Stage site files
+      - name: Build site
         run: |
-          mkdir -p _site
-          # Copy everything except repo plumbing and dev-only files.
-          rsync -a ./ _site/ \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude 'node_modules' \
-            --exclude 'tools' \
-            --exclude 'assets/models/src' \
-            --exclude 'assets/anims/src' \
-            --exclude '_site'
-          # Skip Jekyll processing; serve files verbatim.
-          touch _site/.nojekyll
+          ./build.sh _site
+          touch _site/.nojekyll   # serve files verbatim (no Jekyll)
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

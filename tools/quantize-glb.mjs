@@ -165,5 +165,5 @@ function quantize(file) {
   console.log(`${path.basename(file)}: ${(src.length / 1024).toFixed(0)} KB -> ${(out.length / 1024).toFixed(0)} KB`);
 }
 
-const files = fs.readdirSync(dir).filter(f => f.endsWith('.glb') && (!only || f === only + '.glb'));
+const files = fs.readdirSync(dir).filter(f => f.endsWith('.bin') && (!only || f === only + '.bin'));
 for (const f of files) quantize(path.join(dir, f));

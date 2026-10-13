@@ -3,7 +3,7 @@
 //   cd tools && npm install && npm run convert-models [-- name1 name2 ...]
 //
 // Reads  assets/models/src/<name>.fbx
-// Writes assets/models/<name>.glb  (skinned mesh + skeleton, texture embedded
+// Writes assets/models/<name>.bin  (binary glTF / GLB; skinned mesh + skeleton, texture embedded
 //                                   as JPEG at MAX_TEX, bones renamed to plain
 //                                   humanoid names: Hips, Spine, LeftArm, ...)
 //
@@ -79,7 +79,7 @@ try {
   for (const n of names) {
     const { b64, stats } = await page.evaluate(([n, m]) => window.convert(n, m), [n, MAX_TEX]);
     const out = Buffer.from(b64, 'base64');
-    fs.writeFileSync(path.join(outDir, n + '.glb'), out);
+    fs.writeFileSync(path.join(outDir, n + '.bin'), out);
     const srcKB = Math.round(fs.statSync(path.join(srcDir, n + '.fbx')).size / 1024);
     console.log(`${n}: ${srcKB} KB fbx -> ${Math.round(out.length / 1024)} KB glb | verts ${stats.welded}, ${stats.bones.length} bones`);
   }

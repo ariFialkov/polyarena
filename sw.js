@@ -1,14 +1,14 @@
 // Polyarena service worker: precache the app shell (including the ~0.9 MB
 // motion-capture animation library), serve cache-first with background
 // refresh so the game works offline once visited. Character models
-// (assets/models/*.glb, ~1 MB each) are cached on first use rather than
+// (assets/models/*.bin, ~0.7 MB each) are cached on first use rather than
 // precached, to keep the first load light.
 
-const CACHE = 'polyarena-v14';
+const CACHE = 'polyarena-v15';
 const SHELL = [
   '.',
   'index.html',
-  'manifest.webmanifest',
+  'manifest.json',
   'css/styles.css',
   'fonts/bungee.woff2',
   'fonts/teko.woff2',

@@ -19,13 +19,16 @@ import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from '../vendor/jsm/utils/SkeletonUtils.js';
 
 const BASE = 'assets/models/';
+// Models are binary glTF (GLB) files stored with a .bin extension (some
+// hosts reject .glb uploads); GLTFLoader identifies the format by content.
+const MODEL_EXT = '.bin';
 const cache = new Map();   // key -> Promise<THREE.Object3D>
 const loader = new GLTFLoader();
 
 // Preload (or fetch the cached promise for) a model's source scene.
 export function loadModel(key) {
   if (!cache.has(key)) {
-    cache.set(key, loader.loadAsync(BASE + key + '.glb').then(g => {
+    cache.set(key, loader.loadAsync(BASE + key + MODEL_EXT).then(g => {
       g.scene.traverse(o => {
         if (o.isBone) o.name = o.name.replace(/^(smartrig|mixamorig)[:_]?/i, '');
       });
