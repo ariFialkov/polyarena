@@ -194,7 +194,9 @@ dropkicks, sweeps, throws, casts and a takedown.
 - **Retargeting the spine**: limbs align their rest directions with the
   Mixamo rig. The hips, spine, neck and head keep the model's own upright
   posture, so heads look straight ahead instead of being re-aimed at a
-  facial bone.
+  facial bone. Hands aim along the middle finger. Mixamo lists the thumb
+  first, but other rigs order their fingers differently, so aiming at the
+  "first child" twisted some models' hands.
 - **Knockdowns**: drawn by the engine (about 29% of fights have one, and it's
   a bettable market). The blow that ends a clash drops the fighter, who hits
   the canvas and gets back up while the attacker taunts. After that he's

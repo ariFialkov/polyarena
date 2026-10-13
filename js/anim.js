@@ -188,7 +188,14 @@ export class AnimRetarget {
     const cInv = container.getWorldQuaternion(new THREE.Quaternion()).invert();
     const relQ = b => cInv.clone().multiply(b.getWorldQuaternion(new THREE.Quaternion()));
     const relP = b => container.worldToLocal(b.getWorldPosition(new THREE.Vector3()));
-    const childOf = (map, n) => (CHILD[n] && map[CHILD[n]]) || (map[n] && map[n].children.find(c => c.isBone));
+    // the bone each joint is aimed along. Named explicitly where rigs differ:
+    // a hand's first child is the thumb on Mixamo but any finger on other
+    // rigs (aligning thumb to index twists the whole hand), so hands aim
+    // along the middle finger
+    const childOf = (map, n) => {
+      const named = CHILD[n] || (/Hand$/.test(n) ? n + 'Middle1' : null);
+      return (named && map[named]) || (map[n] && map[n].children.find(c => c.isBone));
+    };
 
     // source rest (the rig's own skeleton in its root frame = identity)
     const src = rig.bones;

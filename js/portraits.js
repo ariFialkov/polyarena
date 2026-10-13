@@ -18,14 +18,18 @@ export class PortraitStudio {
     this.r = renderer;
     this.scene = new THREE.Scene();
     this.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 40);
-    this.scene.add(new THREE.HemisphereLight(0xb0a0e0, 0x140a24, 0.75));
-    this.key = new THREE.DirectionalLight(0xfff4e8, 2.6);
-    this.key.position.set(1.2, 3, 4);
-    this.rimL = new THREE.DirectionalLight(0xffffff, 5);
+    // studio lighting: a neutral key and soft fill so faces read clearly, and
+    // only a thin corner-coloured rim (the cutouts used to be washed out)
+    this.scene.add(new THREE.HemisphereLight(0xd8d4f0, 0x1a1428, 0.9));
+    this.key = new THREE.DirectionalLight(0xfff6ec, 2.3);
+    this.key.position.set(1.2, 2.6, 4);
+    this.fill = new THREE.DirectionalLight(0xe8ecff, 0.7);
+    this.fill.position.set(-2.5, 1.4, 3);
+    this.rimL = new THREE.DirectionalLight(0xffffff, 1.6);
     this.rimL.position.set(-3, 2.2, -2.5);
-    this.rimR = new THREE.DirectionalLight(0xffffff, 5);
+    this.rimR = new THREE.DirectionalLight(0xffffff, 1.6);
     this.rimR.position.set(3, 2.2, -2.5);
-    this.scene.add(this.key, this.rimL, this.rimR);
+    this.scene.add(this.key, this.fill, this.rimL, this.rimR);
     this.slots = new Map();   // name -> slot
     this.token = 0;
   }
@@ -52,7 +56,11 @@ export class PortraitStudio {
     });
     if (def.model) {
       instantiateModel(def.model).then(m => {
-        if (this.slots.get(name) === slot) f.attachModel(m);
+        if (this.slots.get(name) !== slot) return;
+        // no self-illumination in the studio (it's there to lift models in
+        // the darker arena; here it flattens faces into a glow)
+        m.traverse(o => { if (o.isMesh && o.material.emissiveMap) o.material.emissiveIntensity = 0; });
+        f.attachModel(m);
       }).catch(() => f.markReady());
     } else f.markReady();
     return slot;
