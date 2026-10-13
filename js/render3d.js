@@ -167,6 +167,8 @@ export class Arena {
     this.plan = null;
     this.clock = 0;
     this.lastHitAt = -9;
+    this.exCur = null;
+    this.hp = [1, 1];
     for (const f of this.fighters) { this.scene.add(f.root); f.play('warmup'); }
     this.flash = 0; this.redFlash = 0; this.slowmo = 1; this.hitstop = 0;
     this.antic = null;
@@ -186,6 +188,41 @@ export class Arena {
   }
 
   fighter(i) { return this.fighters[i]; }
+
+  // Hits, blocks and misses for the HUD popups: { kind, by, ev, heavy, at }
+  // (main.js sets onImpact).
+  report(info) { if (this.onImpact) this.onImpact(info); }
+
+  // world point -> CSS pixels in the canvas
+  toScreen(v) {
+    const p = v.clone().project(this.camera);
+    return { x: (p.x + 1) / 2 * this.W, y: (1 - p.y) / 2 * this.H, behind: p.z > 1 };
+  }
+
+  setHp(hp) { this.hp = [...hp]; }
+
+  // Exchange bookkeeping: who took the worse of each clash decides who
+  // backs off afterwards (see neutralTarget).
+  trackExchange(ev) {
+    if (ev.ex == null) return;
+    if (this.exCur !== ev.ex) { this.finishExchange(); this.exCur = ev.ex; this.exDmg = [0, 0]; }
+    this.exLast = this.clock;
+    if (ev.type !== 'miss' && ev.dmg) this.exDmg[1 - ev.by] += ev.dmg;
+  }
+
+  finishExchange() {
+    if (this.exCur == null) return;
+    this.exCur = null;
+    const d = this.exDmg || [0, 0];
+    if (Math.max(d[0], d[1]) < 0.005) return;
+    const loser = d[0] > d[1] ? 0 : 1;
+    const L = this.fighters[loser], W = this.fighters[1 - loser];
+    if (!L || !W) return;
+    const big = Math.abs(d[0] - d[1]) > 0.1;
+    L.after = { want: big ? 1.2 : 0.8, until: this.clock + 3 };    // backs off further
+    W.after = { want: -0.25, until: this.clock + 2 };              // holds the centre
+    L.restT = 0.05; W.restT = randRange(0.25, 0.5);
+  }
 
   // Compile shaders for everything in the scene ahead of its first draw
   // (otherwise the first frame a material appears stalls on compilation).
@@ -261,7 +298,7 @@ export class Arena {
     // the defender gets the guard up just before a blocked strike lands
     if (ev.type === 'miss' && p.launched && !p.guarded && tImp < 0.2 && o.rig && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) {
       p.guarded = true;
-      o.guard();
+      o.guard(ev.block === false ? 'dodge' : 'block');
     }
   }
 
@@ -345,13 +382,14 @@ export class Arena {
     const p = ev && this.plan && this.plan.ev === ev && this.plan.launched && f.plan === this.plan
       && f.rig && f.rig.id === this.plan.clip ? this.plan : null;
     this.lastHitAt = this.clock;
+    if (ev) this.trackExchange(ev);
     if (f.rig) return this.clipStrike(f, o, type, landed, hurt, ev, p);
 
     switch (type) {
-      case 'fireball': return this.doFireball(f, o);
-      case 'teleport': return this.doTeleport(f, o);
-      case 'flyingkick': return this.doFlyingKick(f, o);
-      case 'shockwave': return this.doShockwave(f, o);
+      case 'fireball': return this.doFireball(f, o, null, ev);
+      case 'teleport': return this.doTeleport(f, o, ev);
+      case 'flyingkick': return this.doFlyingKick(f, o, null, ev);
+      case 'shockwave': return this.doShockwave(f, o, null, ev);
     }
 
     // late? close the gap with a burst so the hit visibly connects
@@ -360,26 +398,27 @@ export class Arena {
 
     f.startStrike(type);
     if (landed && ev && ev.kd) {
-      this.later(110, () => { this.impactFx(1 - by, true); this.floor(o); });
+      this.later(110, () => { this.impactFx(1 - by, true, null, ev); this.floor(o); });
     } else if (landed) {
       o.play(hurt ? 'hurt' : 'hit');
       o.animT = -0.12;
-      this.later(110, () => this.impactFx(1 - by, hurt));
-    } else if (rand() < 0.6) {
-      o.play('block');
+      this.later(110, () => this.impactFx(1 - by, hurt, null, ev));
+    } else {
+      if (!ev || ev.block !== false) o.play('block');
       this.later(110, () => {
         this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
-        o.kb += -dir * 1.6;
+        o.kb += -dir * 0.8;
+        this.report({ kind: ev && ev.block === false ? 'miss' : 'block', by, ev, at: o.chestWorld() });
       });
     }
   }
 
   clipStrike(f, o, type, landed, hurt, ev, p) {
     switch (type) {
-      case 'fireball': return this.doFireball(f, o, p);
-      case 'teleport': return this.doTeleport(f, o);
-      case 'flyingkick': return this.doFlyingKick(f, o, p);
-      case 'shockwave': return this.doShockwave(f, o, p);
+      case 'fireball': return this.doFireball(f, o, p, ev);
+      case 'teleport': return this.doTeleport(f, o, ev);
+      case 'flyingkick': return this.doFlyingKick(f, o, p, ev);
+      case 'shockwave': return this.doShockwave(f, o, p, ev);
     }
     const dist = Math.abs(o.x - f.x), dir = Math.sign(o.x - f.x) || 1;
     let lead = 0, clip;
@@ -401,11 +440,13 @@ export class Arena {
       if (landed) {
         const kd = !!(ev && ev.kd);
         this.reactTo(o, g, { hurt, heavy: HEAVY.has(type), ko: ev && ev.type === 'ko', kd });
-        this.impactFx(o.idx, hurt || kd, f.limbWorld(g ? g.limb : clipMeta(clip).limb));
+        this.impactFx(o.idx, hurt || kd, f.limbWorld(g ? g.limb : clipMeta(clip).limb), ev);
       } else {
-        if (!(p && p.guarded) && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) o.guard();
-        this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
-        o.kb += -dir * 0.8;
+        const blocked = !ev || ev.block !== false;
+        if (!(p && p.guarded) && !GROUNDED.has(o.anim) && !FROZEN.has(o.anim)) o.guard(blocked ? 'block' : 'dodge');
+        if (blocked) this.particles.burst(o.chestWorld(), 5, { color: 0x9fd8ff, speed: 1.5, life: 0.25, gravity: 2 });
+        o.kb += -dir * (blocked ? 0.8 : 0.3);
+        this.report({ kind: blocked ? 'block' : 'miss', by: f.idx, ev, at: blocked ? o.chestWorld() : o.headWorld() });
       }
     };
     if (lead > 0.02) this.later(lead * 1000, hit); else hit();
@@ -413,7 +454,7 @@ export class Arena {
 
   // ---- specials ----
 
-  doFireball(f, o, p) {
+  doFireball(f, o, p, ev = null) {
     let release = 180, flight = null;
     if (f.rig) {
       const sp = f.kit.special;
@@ -443,7 +484,7 @@ export class Arena {
       core.position.copy(from);
       this.scene.add(core);
       const dist = Math.abs(o.x - f.x);
-      this.projectiles.push({ mesh: core, light, from, victim: o, caster: f, t: 0, dur: flight || clamp(dist / 10, 0.18, 0.6), color: color.getHex() });
+      this.projectiles.push({ mesh: core, light, from, victim: o, caster: f, ev, t: 0, dur: flight || clamp(dist / 10, 0.18, 0.6), color: color.getHex() });
     });
   }
 
@@ -454,7 +495,7 @@ export class Arena {
     p.mesh.traverse(m => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
   }
 
-  doTeleport(f, o) {
+  doTeleport(f, o, ev = null) {
     this.particles.burst(f.chestWorld(), 30, { color: f.def.accent, speed: 2.4, life: 0.5, gravity: -1 });
     f.root.visible = false;
     sfx.teleport();
@@ -472,15 +513,15 @@ export class Arena {
       if (f.rig) {
         const clip = f.kit.special.clip;
         const lead = this.launchNow(f, o, clip, 0.13, 'strike', f.kit.special.impact);
-        this.later(lead * 1000, () => { this.reactTo(o, f.strikeGeom(clip), { hurt: true }); this.impactFx(o.idx, true); sfx.bigHit(); });
+        this.later(lead * 1000, () => { this.reactTo(o, f.strikeGeom(clip), { hurt: true }); this.impactFx(o.idx, true, null, ev); sfx.bigHit(); });
         return;
       }
       f.startStrike('backfist');
-      this.later(110, () => { this.impactFx(o.idx, true); sfx.bigHit(); });
+      this.later(110, () => { this.impactFx(o.idx, true, null, ev); sfx.bigHit(); });
     });
   }
 
-  doFlyingKick(f, o, p) {
+  doFlyingKick(f, o, p, ev = null) {
     const dist = Math.abs(o.x - f.x), dir = Math.sign(o.x - f.x) || 1;
     if (f.rig) {
       const sp = f.kit.special;
@@ -490,7 +531,7 @@ export class Arena {
       this.director.kick({ fov: 2.5 });
       this.later(lead * 1000, () => {
         this.reactTo(o, f.strikeGeom(sp.clip), { hurt: true });
-        this.impactFx(o.idx, true); sfx.bigHit();
+        this.impactFx(o.idx, true, null, ev); sfx.bigHit();
       });
       return;
     }
@@ -498,10 +539,10 @@ export class Arena {
     f.kb += dir * impulseFor(Math.max(0, dist - MELEE * 0.8), 0.25);
     sfx.whoosh();
     this.director.kick({ fov: 2.5 });
-    this.later(240, () => { this.impactFx(o.idx, true); sfx.bigHit(); });
+    this.later(240, () => { this.impactFx(o.idx, true, null, ev); sfx.bigHit(); });
   }
 
-  doShockwave(f, o, p) {
+  doShockwave(f, o, p, ev = null) {
     let slamAt = 360;
     if (f.rig) {
       const sp = f.kit.special;
@@ -515,7 +556,7 @@ export class Arena {
       this.director.kick({ shake: 0.16, fov: 3 });
       sfx.slam();
       this.later(90, () => {
-        this.impactFx(o.idx, false);
+        this.impactFx(o.idx, false, null, ev);
         o.play('hurt');
         o.vy = o.rig ? 2.6 : 4.5;
         o.kb += Math.sign(o.x - f.x) * (o.rig ? 3 : 6);
@@ -534,12 +575,14 @@ export class Arena {
     this.rings.push({ m, t: 0 });
   }
 
-  // at: where the blow lands (the striking limb), defaults to the face
-  impactFx(victimIdx, hurt, at = null) {
+  // at: where the blow lands (the striking limb), defaults to the face;
+  // ev: the scripted event (for the hit popup)
+  impactFx(victimIdx, hurt, at = null, ev = null) {
     const v = this.fighters[victimIdx], a = this.fighters[1 - victimIdx];
     if (!v || !a) return;
     const p = at || v.headWorld();
     if (!at) p.y -= 0.15;
+    this.report({ kind: ev && ev.type === 'ko' ? 'ko' : 'hit', by: a.idx, ev, heavy: hurt, at: p.clone() });
     this.particles.burst(p, hurt ? 20 : 9, {
       color: hurt ? 0xff5a3c : 0xffd75e, speed: hurt ? 3.6 : 2,
       life: 0.5, gravity: 5,
@@ -564,6 +607,7 @@ export class Arena {
   floor(v) {
     const a = this.fighters[1 - v.idx];
     v.knockdown();
+    v.huntedUntil = this.clock + 4.3 + 4;      // once he's up, he's hunted
     v.kb += Math.sign(v.x - a.x) * (v.rig ? 1 : 4);
     this.flash = Math.max(this.flash, 0.5);
     this.slowmo = 0.35;
@@ -656,7 +700,7 @@ export class Arena {
       if (k >= 1) {
         this.particles.burst(p.mesh.position, 24, { color: p.color, speed: 3.4, life: 0.55, gravity: 2 });
         p.victim.play('hurt');
-        this.impactFx(p.victim.idx, true);
+        this.impactFx(p.victim.idx, true, p.mesh.position.clone(), p.ev);
         sfx.bigHit();
         this.removeProjectile(p);
         p.dead = true;
@@ -717,7 +761,8 @@ export class Arena {
   updateMovement(dt) {
     const [a, b] = this.fighters;
     const P = this.plan, A = this.antic;
-    const home = f => (this.portrait ? 1.55 : 1.9) + (f.def.special && f.def.special.kind === 'fireball' ? 0.6 : 0);
+    const home = f => (this.portrait ? 1.9 : 2.4) + (f.def.special && f.def.special.kind === 'fireball' ? 0.5 : 0);
+    if (this.exCur != null && this.clock - this.exLast > 0.9) this.finishExchange();
     for (const f of [a, b]) {
       const o = f === a ? b : a;
       f.kb = f.kb || 0;
@@ -751,12 +796,10 @@ export class Arena {
         } else if (!incoming) {
           f.restT = (f.restT || 0) - dt;
           if (f.restT <= 0) {
-            const mid = (a.x + b.x) / 2 * 0.6;
-            const want = mid - dir * (home(f) + (f.jit || 0)) / 2;
-            const d = want - f.x;
-            f.jit = randRange(-0.25, 0.35);
-            if (Math.abs(d) > 0.16) this.moveTo(f, clamp(d, -1.6, 1.6), randRange(0.35, 0.9));
-            else f.restT = randRange(0.3, 0.8);
+            const { x, rest, tol } = this.neutralTarget(f, o, dir, home(f));
+            const d = x - f.x;
+            if (Math.abs(d) > tol) this.moveTo(f, clamp(d, -1.8, 1.8), rest);
+            else f.restT = rest;
           }
         }
       }
@@ -780,6 +823,30 @@ export class Arena {
       const push = (MIN_SEP - Math.abs(d)) / 2 * (Math.sign(d) || 1);
       a.x -= push; b.x += push;
     }
+  }
+
+  // Where a fighter wants to stand between clashes, and how long to wait
+  // after getting there.
+  //   hunting  the opponent is hurt (low health, or just up off the canvas):
+  //            stalk in close, step after step, and keep him from the centre
+  //   hunted   back away, which ends with him pinned against the edge
+  //   after an exchange the fighter who got the worse of it backs off
+  //   further; the winner holds the centre
+  //   otherwise footsies at home spacing around mid-stage
+  neutralTarget(f, o, dir, home) {
+    const hp = this.hp || [1, 1];
+    const hurt = i => hp[i] < 0.35 || hp[1 - i] - hp[i] > 0.3 || (this.fighters[i].huntedUntil || 0) > this.clock;
+    if (hurt(o.idx) && !hurt(f.idx)) {
+      return { x: o.x - dir * 1.4, rest: randRange(0.2, 0.45), tol: 0.12 };
+    }
+    if (hurt(f.idx) && !hurt(o.idx)) {
+      return { x: o.x - dir * (home + 1.1), rest: randRange(0.35, 0.7), tol: 0.2 };
+    }
+    let want = home + randRange(-0.2, 0.3);
+    let rest = randRange(0.8, 1.6);
+    if (f.after && f.after.until > this.clock) { want += f.after.want; rest = randRange(0.5, 0.9); }
+    const mid = (f.x + o.x) / 2 * 0.6;
+    return { x: mid - dir * want / 2, rest, tol: 0.22 };
   }
 
   // Start a step (or a dash for longer distances) of exactly `d` metres.
@@ -814,21 +881,6 @@ export class Arena {
       }
     }
     f.x = clamp(f.x, -this.bound - 0.5, this.bound + 0.5);
-  }
-
-  // New round: back to your own corners, facing each other.
-  resetPositions() {
-    const h = this.portrait ? 1.55 : 1.9;
-    this.fighters.forEach((f, i) => {
-      f.x = (i === 0 ? -1 : 1) * (h / 2 + 0.6);
-      f.y = 0; f.vy = 0; f.kb = 0; f.vx = 0;
-      f.move = null; f.restT = 0.4 + i * 0.3;
-      f.facing = i === 0 ? 1 : -1;
-      f.smYaw = f.facing * Math.PI / 2 - f.facing * 0.3;
-      if (!FROZEN.has(f.anim) && !GROUNDED.has(f.anim)) f.play('idle');
-    });
-    this.plan = null;
-    this.director.setMode('fight', { restart: true, snap: 0.6 });
   }
 
   // ------------------------------ render ------------------------------

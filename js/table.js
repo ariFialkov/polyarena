@@ -26,8 +26,8 @@ export class Table {
     this.root.innerHTML = '';
     this.zones.clear();
     const mk = id => match.market(id);
-    const halfA = this.buildHalf(match.A, 'A', mk('A_WIN'), [mk('A_KO'), mk('A_DEC')]);
-    const halfB = this.buildHalf(match.B, 'B', mk('B_WIN'), [mk('B_KO'), mk('B_DEC')]);
+    const halfA = this.buildHalf(match.A, 'A', mk('A_WIN'), [mk('A_KO'), mk('A_DEC'), mk('A_FIRST')]);
+    const halfB = this.buildHalf(match.B, 'B', mk('B_WIN'), [mk('B_KO'), mk('B_DEC'), mk('B_FIRST')]);
 
     const center = el('div', 'table-center side-C');
     center.append(el('div', 'center-title', 'PROP BETS'));
@@ -37,7 +37,7 @@ export class Table {
       <div class="split-cap">MONEY ON EACH CORNER</div>`;
     this.splitEl = split;
     center.append(split);
-    for (const id of ['DIST', 'FATAL', 'OVER', 'UNDER', 'KO_R1', 'KO_R2', 'KO_R3']) {
+    for (const id of ['DIST', 'KD', 'FATAL', 'OVER', 'UNDER']) {
       center.append(this.buildZone(mk(id), 'pocket pocket-center'));
     }
     this.root.append(halfA, center, halfB);

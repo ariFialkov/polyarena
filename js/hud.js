@@ -1,6 +1,7 @@
-// In-fight HUD: MK-style health bars with a lagging damage trail, neon round
-// timer + pips, combo counter, special-move banners, live-prop huddles with
-// odds-movement flashes, bet slip with cash-outs, toasts and announcements.
+// In-fight HUD: MK-style health bars with a lagging damage trail and landed
+// counts, the neon fight timer, hit / block / miss popups in corner colours,
+// combo counter, special-move banners, live-prop huddles with odds-movement
+// flashes, bet slip with cash-outs, toasts and announcements.
 
 import { el, $, fmtOdds, fmtMoney, clamp } from './util.js';
 
@@ -13,8 +14,12 @@ export class Hud {
     this.bar = this.hp.map(h => h.querySelector('.hp-bar'));
     this.hpVal = [1, 1];
     this.clockEl = $('#clock');
-    this.roundEl = $('#roundLabel');
-    this.pips = [...document.querySelectorAll('#roundPips i')];
+    this.popBox = $('#popups');
+    this.landed = this.hp.map(h => {
+      const n = el('span', 'hp-landed', '');
+      h.querySelector('.hp-sub').after(n);
+      return n;
+    });
     this.bankEl = $('#bankroll');
     this.slipList = $('#slipList');
     this.slipCount = $('#slipCount');
@@ -58,12 +63,27 @@ export class Hud {
     }
   }
 
-  setClock(secsLeft, round) {
+  setClock(secsLeft, live) {
     const s = Math.max(0, Math.ceil(secsLeft));
     this.clockEl.textContent = s;
-    this.clockEl.classList.toggle('low', s <= 5 && round > 0);
-    if (round) this.roundEl.textContent = 'ROUND ' + round;
-    this.pips.forEach((p, i) => p.classList.toggle('on', i < round));
+    this.clockEl.classList.toggle('low', s <= 5 && live);
+  }
+
+  setLanded(i, n) { this.landed[i].innerHTML = `<b>${n}</b> LANDED`; }
+
+  // Floating indicator where a blow lands. side 0/1 picks the corner colour
+  // (red / blue): the attacker's for hits, the defender's for blocks.
+  //   kind 'hit' | 'big' | 'ko' | 'block' | 'miss'
+  popup(x, y, side, kind, main, sub = '') {
+    if (!this.popBox) return;
+    while (this.popBox.children.length > 8) this.popBox.firstChild.remove();
+    const p = el('div', `hitpop hitpop-${kind} side-${side === 0 ? 'A' : 'B'}`);
+    p.style.left = `${x + (Math.random() - 0.5) * 30}px`;
+    p.style.top = `${y}px`;
+    p.append(el('b', '', main));
+    if (sub) p.append(el('i', '', sub));
+    this.popBox.append(p);
+    setTimeout(() => p.remove(), 1300);
   }
 
   setBankroll(v, delta = 0) {

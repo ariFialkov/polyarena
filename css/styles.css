@@ -308,9 +308,9 @@ canvas.cutout {
 .side-B .zone-win .zone-pool { order: 3; }
 
 .zones { display: flex; flex-direction: column; gap: 10px; flex: none; }
-.pockets { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: none; }
+.pockets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: none; }
 .pocket { border-radius: 40px; padding: 6px 8px 5px; }
-.pocket .zone-label { font-size: 15px; }
+.pocket .zone-label { font-size: 14px; white-space: nowrap; }
 .pocket .zone-odds { font-size: 26px; }
 .pocket .zone-pool { justify-content: center; }
 .pocket .zone-pool .bar { max-width: 60px; }
@@ -561,9 +561,46 @@ body.fighting #chipTray { left: 12px; transform: scale(.72); transform-origin: l
 #roundLabel { font-family: var(--cond); font-size: 14px; letter-spacing: 2px; color: var(--gold); line-height: 1; padding-top: 3px; }
 #clock { font-family: var(--cond); font-weight: 600; font-size: 46px; line-height: .82; color: #fff; text-shadow: 0 0 14px rgba(255, 213, 74, .8); font-variant-numeric: tabular-nums; }
 #clock.low { color: #ff7aa2; text-shadow: 0 0 14px var(--red); animation: lowHp .5s infinite; }
-#roundPips { display: flex; justify-content: center; gap: 5px; margin-top: 2px; }
-#roundPips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.18); }
-#roundPips i.on { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+/* landed-strike count under each health bar */
+.hp-landed { display: block; margin-top: 2px; font-family: var(--cond); font-size: 15px; letter-spacing: 1px; color: rgba(255,255,255,.7); line-height: 1; }
+.hp-landed b { font-size: 19px; color: #fff; text-shadow: 0 0 8px rgba(var(--sideRGB), .9); }
+.side-B .hp-landed { text-align: right; }
+
+/* hit / block / miss popups: rise and fade where the blow lands */
+#popups { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.hitpop {
+  position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap;
+  font-family: var(--display); line-height: .9; color: #fff;
+  animation: popRise 1.25s cubic-bezier(.2, 1.2, .4, 1) forwards;
+}
+.hitpop.side-A { --pc: var(--red); --pcRGB: 255, 45, 111; }
+.hitpop.side-B { --pc: var(--cyan); --pcRGB: 25, 227, 255; }
+.hitpop b { display: block; font-size: 30px; color: var(--pc); -webkit-text-stroke: 1px rgba(0,0,0,.55);
+  text-shadow: 0 0 12px rgba(var(--pcRGB), .9), 0 2px 0 rgba(0,0,0,.6); }
+.hitpop i { display: block; font-style: normal; font-family: var(--cond); font-size: 17px; letter-spacing: 2px; margin-top: 2px;
+  color: #fff; text-shadow: 0 0 8px rgba(var(--pcRGB), .9), 0 1px 0 #000; }
+.hitpop-big b { font-size: 42px; }
+.hitpop-ko b { font-size: 52px; color: #fff; text-shadow: 0 0 18px rgba(var(--pcRGB), 1), 0 0 36px rgba(var(--pcRGB), .8); }
+.hitpop-block b { font-size: 22px; color: #e9f2ff; padding: 3px 10px 1px; border: 2px solid var(--pc); border-radius: 8px;
+  background: rgba(10, 14, 30, .7); box-shadow: 0 0 14px rgba(var(--pcRGB), .7); text-shadow: none; -webkit-text-stroke: 0; }
+.hitpop-miss b { font-size: 22px; color: #b9bfd3; text-shadow: 0 2px 0 rgba(0,0,0,.6); -webkit-text-stroke: 0; }
+.hitpop-miss { animation-name: popDrift; }
+@keyframes popRise {
+  0% { opacity: 0; transform: translate(-50%, -60%) scale(.5); }
+  12% { opacity: 1; transform: translate(-50%, -100%) scale(1.15); }
+  24% { transform: translate(-50%, -100%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -190%) scale(.95); }
+}
+@keyframes popDrift {
+  0% { opacity: 0; transform: translate(-50%, -80%); }
+  15% { opacity: .95; }
+  100% { opacity: 0; transform: translate(-50%, -160%); }
+}
+@media (max-width: 700px) {
+  .hitpop b { font-size: 24px; } .hitpop-big b { font-size: 32px; } .hitpop-ko b { font-size: 40px; }
+  .hitpop-block b, .hitpop-miss b { font-size: 17px; } .hitpop i { font-size: 14px; }
+}
 
 #strikeMeter {
   position: absolute; top: 90px; left: 50%; transform: translateX(-50%); z-index: 20;
@@ -768,7 +805,9 @@ body.fighting #chipTray { left: 12px; transform: scale(.72); transform-origin: l
   .zone-win .zone-odds { font-size: 36px; }
   .zone-win .zone-label { font-size: 13px; }
   .pocket .zone-odds { font-size: 21px; }
-  .pocket .zone-label { font-size: 13px; }
+  .pocket .zone-label { font-size: 11px; white-space: normal; line-height: 1; letter-spacing: .5px; }
+  .pockets { gap: 5px; }
+  .pocket { padding: 5px 4px 4px; }
   .pocket .zone-pool .bar { display: none; }
   .table-center { flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 6px; gap: 6px; }
   .center-title { display: none; }

@@ -20,13 +20,15 @@ python3 -m http.server 8000
 
 Serve over HTTPS (or localhost) for the service worker / install prompt to activate.
 
-## How a round works
+## How a fight works
 
 1. **Lobby / betting (30s)** — the neon betting table sits over the live 3D stage.
    Each corner shows a live 3D cutout of its fighter running motion-captured
-   warm-ups in character (stretches, chest thumps, salutes, bows, dances) behind the big *WINS* zone and
-   *BY KO* / *BY DECISION* pockets; shared props run down the center under a live
-   red-vs-blue **money split**. Bot players sit on the rail at the top: their chips
+   warm-ups in character (stretches, chest thumps, salutes, bows, dances). In
+   front of it are the big *WINS* zone and the *BY KO*, *BY DECISION* and
+   *LANDS FIRST* pockets. Shared props (goes the distance, knockdown scored,
+   fatality, strikes over/under) run down the center under a live red-vs-blue
+   **money split**. Bot players sit on the rail at the top: their chips
    fly to the zones they back, zones show pool size and bettor counts, and badges
    flag what's moving — **🔥 HEATING UP** (rapid action), **👥 CROWD PICK** (the
    money favorite), **⚡ HIT N STRAIGHT / ❄ COLD N** (bet types on a run across
@@ -34,11 +36,19 @@ Serve over HTTPS (or localhost) for the service worker / install prompt to activ
    timer and a bot betting frenzy.
 2. **The table swings open**: camera sweep onto the stage, each fighter's close-up
    call-out with their signature special, tale of the tape, 3-2-1, FIGHT.
-3. **The fight** — up to 3 rounds of **30 real seconds** each (90s if it goes the
-   distance; the engine still models 3:00 game rounds, played at 6×). MK-style
-   dynamic camera, fast movement, combo bursts, specials, combo counter and
-   per-hit health bars. Live props flank the arena and re-price every ~1.2s with
-   odds-movement flashes; the bet slip offers cash-out on every open ticket.
+3. **The fight**: one fight of **30 real seconds**. The engine models a 3:00
+   fight played at 6× speed.
+   - **Clashes:** fighters come together, trade, and back out. The one who got
+     the worse of a clash backs off further, and a fighter who has his man
+     hurt hunts him down to the edge of the stage.
+   - **Popups** at the point of impact: damage hits in the attacker's corner
+     colour (red or blue), with BIG HIT, COUNTER, KNOCKDOWN!, the special's
+     name or K.O. on top; BLOCKED in the defender's colour; MISS in grey.
+   - **HUD:** health bars with landed-strike counts, a combo counter and
+     special-move banners.
+   - **Live bets:** live props flank the arena and re-price every ~1.2 s with
+     odds-movement flashes, and the bet slip offers cash-out on every open
+     ticket.
 4. **Result** — K.O. / FATALITY / decision sequence, then a result card with the
    winner's live victory pose, your settled tickets, a net ticker, coin/confetti
    showers on a win, and how every bot at the table did. Next fight rotates in.
@@ -47,22 +57,35 @@ Serve over HTTPS (or localhost) for the service worker / install prompt to activ
 
 Everything is priced off one generative fight model:
 
-- Each fighter has stats (power, speed, defense, chin, stamina, aggression, flair) that
-  drive per-round strike output, per-strike KO probability, decision scoring and
-  fatality chance.
+- Each fighter has stats (power, speed, defense, chin, aggression, flair). These
+  drive:
+  - landed strikes, about 5-10 each per fight;
+  - a per-strike chance of a knockout (about 40% of fights end in a KO) or a
+    **knockdown** the fighter gets up from;
+  - who **lands first**;
+  - decision scoring, where knockdowns count heavily;
+  - the chance of a fatality.
 - At matchup time the engine runs **30,000 Monte-Carlo simulations** of the model.
   Every market's probability `p` is measured from the sample, and its payout is set to
   `RTP / p` with `RTP = 0.96` — so every bet on the board returns 96% in expectation.
 - The **real fight outcome is one more independent draw from the same model**, which
   makes displayed odds and realized results consistent by construction (verified:
-  realized RTP ≈ 95.7% over 200k fights; the gap is payout rounding).
+  realized RTP ≈ 96.2% on a 60k-fight check; the wobble is payout rounding and sampling).
 - **Live odds** are the same 30k sample conditioned on "fight still in progress at
   game-time t" — so in-fight prices update honestly and live bets also carry 96% RTP.
 - **Cash-out** pays `stake × payout × P(win | t) × 0.96`.
 
 The fight you watch is choreography (`js/sim.js`): the pre-drawn outcome is expanded
 into a timeline of strikes, knockdowns and HP targets, so the presentation always lands
-exactly on the drawn result (winner, method, round, time, strike totals).
+exactly on the drawn result: winner, method, time, strike totals, knockdowns and who
+landed first.
+
+**Markets**:
+- **Each corner:** wins, by KO, by decision, lands first.
+- **Shared props:** goes the distance, knockdown scored, fatality finish, and
+  strikes over/under a line set at the 50/50 point.
+- **Live:** either fighter wins, ends in a KO, goes the distance, fatality, and
+  strikes over/under.
 
 ## The 3D arena
 
@@ -78,24 +101,32 @@ offline) presented Mortal-Kombat style.
   only in deliberate steps (about 1.1 m/s, with matching step clips) and
   dashes. These are position tweens of an exact distance, never random
   impulses.
-  - **Neutral:** both fighters settle at a home spacing around mid-stage
-    (fireball users keep longer range), with small rhythmic step-ins and
-    step-outs.
+  - **Neutral:** both fighters settle about 2.4 m apart around mid-stage
+    (fireball users keep longer range). Small rhythmic step-ins and step-outs
+    come with pauses.
   - **Attack:** the attacker moves in just in time to the planned move's launch
     range. That range is the reach measured on its own model plus the move's
     travel. The defender plants, and any gap left closes exactly by the impact
     frame.
-  - **After an exchange:** both step back out to home spacing.
+  - **After an exchange:** the fighter who took more damage backs off
+    further, and the winner holds the centre.
+  - **Hunting:** when a fighter is hurt (low health, well behind, or just up
+    from a knockdown), the other stalks him step by step. The hurt fighter
+    retreats until he's pinned at the edge of the stage.
   - **Knockback:** a short, consistent shove.
-  - **Round start:** both fighters reset to their own corners.
 
   Choreography decides *what* happens and *when*. `main.js` streams the next
   scripted attack to the arena (`anticipate()`).
-- **Choreography** (`js/sim.js`): landed strikes are grouped into exchanges (2-5 hit
-  combos, sometimes answered by a counter, sometimes a blocked opener) and
-  standalone signature specials, with neutral spacing between. Each fighter's
-  landed strikes per round still match the drawn outcome exactly, and every hit
-  carries its share of the scripted HP loss.
+- **Choreography** (`js/sim.js`): the fight is told as about 6-7 **clashes** with
+  roughly 2.4 s of neutral between them (median).
+  - A clash is a blocked or slipped opener, 1-3 landed shots, and sometimes a
+    counter that lands or gets stuffed. Standalone signature specials sit
+    between clashes.
+  - The eventual winner's clashes drift later in the fight, so it builds to
+    pressure and a finish.
+  - Each fighter's landed strikes, every knockdown and who lands first match
+    the drawn outcome exactly.
+  - Every hit carries its share of the scripted HP loss.
 - **Stages** (`js/stages.js`): 7 themed platform arenas — Jungle Temple, Blood
   Keep, Orbital Kolosseum, The White House, Siberian Summit, Sakura Garden,
   Sunset Shores — each with its own sky, fog, lighting, low-poly scenery and
@@ -164,12 +195,11 @@ dropkicks, sweeps, throws, casts and a takedown.
   Mixamo rig. The hips, spine, neck and head keep the model's own upright
   posture, so heads look straight ahead instead of being re-aimed at a
   facial bone.
-- **Knockdowns** (`js/sim.js`): in some rounds, the last blow of an exchange
-  drops the fighter taking the beating. They hit the canvas and get back up,
-  while the attacker plays to the crowd with their taunt. This is
-  presentation only and never changes the drawn outcome. The choreography
-  keeps the floor clear for about 4 seconds, which covers the fall, a beat on
-  the canvas and the get-up.
+- **Knockdowns**: drawn by the engine (about 29% of fights have one, and it's
+  a bettable market). The blow that ends a clash drops the fighter, who hits
+  the canvas and gets back up while the attacker taunts. After that he's
+  hunted. The choreography keeps the floor clear for about 5 seconds, which
+  covers the fall, a beat on the canvas and the get-up.
 
 Rebuilding the library after changing the clip catalogue
 (`tools/anims.manifest.json`, which maps ids to source files, with an optional

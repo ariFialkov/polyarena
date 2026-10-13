@@ -1,14 +1,14 @@
 // Polyarena — main state machine.
 // BETTING (30s, neon lobby) -> TRANSITION -> INTRO (camera sweep, fighter
-// call-outs, tale of the tape, 3-2-1) -> ROUND x3 (30 real seconds each,
-// BREAK between) -> KO / FATALITY / DECISION -> RESULT -> next match.
+// call-outs, tale of the tape, 3-2-1) -> FIGHT (one 30-second fight) ->
+// KO / FATALITY / DECISION -> RESULT -> next match.
 //
-// The engine works in GAME time (3:00 rounds); TIME_SCALE plays a round in
-// 30 real seconds, so a fight that goes the distance lasts 90 seconds.
+// The engine works in GAME time (a 3:00 fight); TIME_SCALE plays it in 30
+// real seconds.
 
 import { $, el, fmtMoney, fmtOdds, clamp, rand } from './util.js';
 import { pickMatchup, record, FIGHTERS } from './fighters.js';
-import { Match, simFight, ROUND_SECS, NUM_ROUNDS } from './engine.js';
+import { Match, simFight, FIGHT_SECS } from './engine.js';
 import { buildScript, buildHpScript } from './sim.js';
 import { Arena, SPECIALS } from './render3d.js';
 import { pickStage, STAGES } from './stages.js';
@@ -22,10 +22,9 @@ import { FX } from './fx.js';
 import { sfx, setSound, soundOn } from './audio.js';
 
 const BETTING_SECS = 30;
-const TIME_SCALE = 6;            // 180 game-seconds per round -> 30 real seconds
-const BREAK_SECS = 4;
+const TIME_SCALE = 6;            // 180 game-seconds of fight -> 30 real seconds
 const RESULT_SECS = 8.5;
-const HIST_KEY = 'pa_hist_v1';
+const HIST_KEY = 'pa_hist_v2';   // v2: single-fight markets
 
 const S = {
   phase: 'BOOT',
@@ -35,8 +34,8 @@ const S = {
   script: null,
   hp: null,
   hpNow: [1, 1],
-  round: 0,
-  roundTime: 0,
+  fightTime: 0,
+  landed: [0, 0],
   gameTime: 0,
   evIdx: 0,
   strikes: 0,
@@ -66,6 +65,7 @@ function boot() {
   studio = new PortraitStudio(arena.renderer);
   fx = new FX($('#fxCanvas'), $('#stage'));
   hud = new Hud({ onLiveBet: placeLiveBet, onCashout: cashout });
+  arena.onImpact = showImpact;
   table = new Table($('#table'), { onPlayerBet: placeTableBet });
   bots = makeBots(6);
   buildRail();
@@ -162,7 +162,7 @@ function newMatch() {
   S.liveValues = new Map();
   S.pools = new Map();
   S.strikes = 0;
-  S.round = 0;
+  S.landed = [0, 0];
   S.gameTime = 0;
   S.hpNow = [1, 1];
   for (const b of bots) b.bets = [];
@@ -244,8 +244,8 @@ function botTableBet(bot, lastCall) {
       table.floatAmt(m.id, '+' + fmtMoney(amount), bot.name);
       addPool(m.id, amount, bot.name);
       sfx.chip();
-      if (m.id === 'A_WIN' || m.id === 'A_KO' || m.id === 'A_DEC') studio.react('A');
-      if (m.id === 'B_WIN' || m.id === 'B_KO' || m.id === 'B_DEC') studio.react('B');
+      if (m.side === 'A') studio.react('A');
+      if (m.side === 'B') studio.react('B');
     },
   });
   if (lastCall || amount >= 100) {
@@ -409,7 +409,7 @@ function startIntro() {
   S.phase = 'INTRO';
   const { A, B } = S.match;
   $('#fightHud').classList.remove('hidden');
-  hud.setClock(ROUND_SECS / TIME_SCALE, 1);
+  hud.setClock(FIGHT_SECS / TIME_SCALE, false);
   arena.setMode('intro');
 
   const tape = $('#tape');
@@ -466,39 +466,31 @@ function startCountdown() {
     } else {
       hud.announce('FIGHT!', 'red big', 900);
       sfx.bell();
-      startRound(1);
+      startFight();
     }
   };
   step();
 }
 
 // ---------------------------------------------------------------------------
-// Rounds
+// The fight
 // ---------------------------------------------------------------------------
 
-function startRound(r) {
-  if (r === 1) {
-    S.hp = buildHpScript(S.match.outcome);
-    S.script = buildScript(S.match.outcome, S.match.A, S.match.B, S.hp);
-  }
-  S.phase = 'ROUND';
-  S.round = r;
-  S.roundTime = 0;
+function startFight() {
+  S.hp = buildHpScript(S.match.outcome);
+  S.script = buildScript(S.match.outcome, S.match.A, S.match.B, S.hp);
+  S.phase = 'FIGHT';
+  S.fightTime = 0;
   S.evIdx = 0;
   S.combo = { by: -1, n: 0, t: 0 };
-  S.roundLen = S.script.rounds[r - 1].endTime;
-  S.hpNow = [...S.hp.start[r - 1]];
-  hud.setHp(0, S.hpNow[0]);
-  hud.setHp(1, S.hpNow[1]);
-  hud.setClock(ROUND_SECS / TIME_SCALE, r);
-  if (r > 1) arena.resetPositions();   // everyone back to their own corner
+  S.landed = [0, 0];
+  S.hpNow = [...S.hp.start];
+  for (const i of [0, 1]) { hud.setHp(i, S.hpNow[i]); hud.setLanded(i, 0); }
+  arena.setHp(S.hpNow);
+  hud.setClock(FIGHT_SECS / TIME_SCALE, true);
   arena.setMode('fight');
   $('#strikeMeter').classList.remove('hidden');
   updateStrikeMeter();
-  if (r > 1) {
-    hud.announce('ROUND ' + r, 'gold', 1100, 'FIGHT!');
-    sfx.bell();
-  }
   refreshLive();
 }
 
@@ -512,6 +504,7 @@ function landHit(ev) {
   if (ev.dmg) {
     S.hpNow[victim] = Math.max(0, S.hpNow[victim] - ev.dmg);
     hud.setHp(victim, S.hpNow[victim]);
+    arena.setHp(S.hpNow);
   }
   const now = performance.now();
   if (S.combo.by === ev.by && now - S.combo.t < 750) S.combo.n++;
@@ -520,9 +513,9 @@ function landHit(ev) {
   hud.comboHit(ev.by, S.combo.n);
 }
 
-function processRoundEvents() {
-  const evs = S.script.rounds[S.round - 1].events;
-  while (S.evIdx < evs.length && evs[S.evIdx].t <= S.roundTime) {
+function processFightEvents() {
+  const evs = S.script.events;
+  while (S.evIdx < evs.length && evs[S.evIdx].t <= S.fightTime) {
     const ev = evs[S.evIdx++];
     switch (ev.type) {
       case 'strike': {
@@ -538,6 +531,7 @@ function processRoundEvents() {
         }
         if (ev.kd) hud.announce('KNOCKDOWN!', 'gold', 1300);
         S.strikes++;
+        hud.setLanded(ev.by, ++S.landed[ev.by]);
         updateStrikeMeter();
         break;
       }
@@ -557,8 +551,24 @@ function processRoundEvents() {
   }
   // stream the next attack to the movement director
   const next = evs[S.evIdx];
-  if (next) arena.anticipate(next.by, (next.t - S.roundTime) / TIME_SCALE, next.strike, next);
+  if (next) arena.anticipate(next.by, (next.t - S.fightTime) / TIME_SCALE, next.strike, next);
   else arena.anticipate(null);
+}
+
+// Popup where a blow lands: damage in the attacker's corner colour, BLOCKED
+// in the defender's, MISS in grey.
+function showImpact({ kind, by, ev, heavy, at }) {
+  if (S.phase !== 'FIGHT' && S.phase !== 'KOSEQ') return;
+  const p = arena.toScreen(at);
+  if (p.behind) return;
+  if (kind === 'block') return hud.popup(p.x, p.y, 1 - by, 'block', 'BLOCKED');
+  if (kind === 'miss') return hud.popup(p.x, p.y, by, 'miss', 'MISS');
+  const dmg = ev && ev.dmg ? Math.max(1, Math.round(ev.dmg * 100)) : 0;
+  if (kind === 'ko') return hud.popup(p.x, p.y, by, 'ko', 'K.O.', dmg ? `−${dmg}` : '');
+  const big = heavy || !!(ev && (ev.kd || ev.specialName)) || dmg >= 9;
+  const sub = ev && ev.kd ? 'KNOCKDOWN!' : ev && ev.specialName ? ev.specialName.toUpperCase()
+    : ev && ev.counter ? 'COUNTER' : big ? 'BIG HIT' : 'HIT';
+  hud.popup(p.x, p.y, by, big ? 'big' : 'hit', dmg ? `−${dmg}` : 'HIT', sub);
 }
 
 function doKO(ev) {
@@ -597,49 +607,38 @@ function doKO(ev) {
   }, 2400);
 }
 
-function endRoundByBell() {
+function endByBell() {
   sfx.bellEnd();
   const o = S.match.outcome;
-  // land exactly on the scripted round-end health
-  S.hpNow = [...S.hp.end[S.round - 1]];
+  // land exactly on the scripted final health
+  S.hpNow = [...S.hp.end];
   hud.setHp(0, S.hpNow[0]);
   hud.setHp(1, S.hpNow[1]);
   arena.anticipate(null);
   arena.setMode('break');
-  if (S.round >= NUM_ROUNDS) {
-    S.phase = 'DECIDE';
-    hud.announce('TIME!', 'gold', 1200);
+  S.phase = 'DECIDE';
+  hud.announce('TIME!', 'gold', 1200);
+  setTimeout(() => {
+    hud.announce("JUDGES' DECISION", '', 1400);
     setTimeout(() => {
-      hud.announce("JUDGES' DECISION", '', 1400);
-      setTimeout(() => {
-        arena.celebrate(o.winner);
-        sfx.win();
-        hud.announce(shortName(o.winner === 0 ? S.match.A : S.match.B).toUpperCase(), o.winner === 0 ? 'red' : 'blue', 1600, 'WINS BY DECISION');
-        setTimeout(showResult, 1900);
-      }, 1600);
-    }, 1300);
-  } else {
-    S.phase = 'BREAK';
-    S.breakLeft = BREAK_SECS;
-    hud.announce(`END OF ROUND ${S.round}`, '', 1300);
-    refreshLive();
-  }
+      arena.celebrate(o.winner);
+      sfx.win();
+      hud.announce(shortName(o.winner === 0 ? S.match.A : S.match.B).toUpperCase(), o.winner === 0 ? 'red' : 'blue', 1600, 'WINS BY DECISION');
+      setTimeout(showResult, 1900);
+    }, 1600);
+  }, 1300);
 }
 
 // ---------------------------------------------------------------------------
 // Live betting + cashout
 // ---------------------------------------------------------------------------
 
-function liveRoundNum() {
-  return S.phase === 'BREAK' ? Math.min(S.round + 1, NUM_ROUNDS) : Math.max(1, S.round);
-}
-
-function fightAlive() { return S.phase === 'ROUND' || S.phase === 'BREAK'; }
+function fightAlive() { return S.phase === 'FIGHT'; }
 
 function refreshLive() {
   if (!fightAlive()) return;
   const t = S.gameTime;
-  const markets = S.match.liveMarkets(t, liveRoundNum());
+  const markets = S.match.liveMarkets(t);
   hud.renderLiveMarkets(markets, table.selectedChip);
 
   S.liveValues = new Map();
@@ -740,10 +739,11 @@ function showResult() {
   const method = o.fatality ? 'FATALITY' : o.method === 'KO' ? 'KNOCKOUT' : 'DECISION';
   box.append(el('div', 'result-title' + (o.fatality ? ' fatal' : o.method === 'KO' ? '' : ' dec'), method));
   box.append(el('div', 'result-winner', `${wDef.name} WINS`));
-  const realT = o.method === 'KO' ? (o.endTime - (o.endRound - 1) * ROUND_SECS) / TIME_SCALE : 0;
+  const realT = o.method === 'KO' ? o.endTime / TIME_SCALE : 0;
+  const kdTxt = o.kds.length ? ` · ${o.kds.length} KNOCKDOWN${o.kds.length > 1 ? 'S' : ''}` : '';
   box.append(el('div', 'result-sub', o.method === 'KO'
-    ? `ROUND ${o.endRound} · ${realT.toFixed(1)}s IN · ${o.total} STRIKES LANDED`
-    : `UNANIMOUS DECISION · ${o.total} STRIKES LANDED`));
+    ? `${realT.toFixed(1)}s IN · ${o.total} STRIKES LANDED${kdTxt}`
+    : `UNANIMOUS DECISION · ${o.total} STRIKES LANDED${kdTxt}`));
 
   const list = el('div', 'result-bets');
   if (!S.bets.length) list.append(el('div', 'result-none', 'You sat this one out — get some chips down next fight.'));
@@ -758,7 +758,7 @@ function showResult() {
   box.append(list);
   if (S.bets.length) {
     const nr = el('div', 'result-net ' + (net > 0.004 ? 'win' : net < -0.004 ? 'loss' : 'even'));
-    nr.innerHTML = '<span>ROUND NET</span><b>$0</b>';
+    nr.innerHTML = '<span>FIGHT NET</span><b>$0</b>';
     box.append(nr);
     tickNumber(nr.querySelector('b'), net, 1100);
   }
@@ -840,25 +840,17 @@ function loop(ts) {
       if (S.bettingLeft <= 0) endBetting();
       break;
     }
-    case 'ROUND': {
+    case 'FIGHT': {
       const gdt = dt * TIME_SCALE;
-      S.roundTime += gdt;
+      S.fightTime += gdt;
       S.gameTime += gdt;
-      processRoundEvents();
-      if (S.phase === 'ROUND') {
-        hud.setClock((ROUND_SECS - S.roundTime) / TIME_SCALE, S.round);
-        if (S.roundTime >= ROUND_SECS) endRoundByBell();
+      processFightEvents();
+      if (S.phase === 'FIGHT') {
+        hud.setClock((FIGHT_SECS - S.fightTime) / TIME_SCALE, true);
+        if (S.fightTime >= FIGHT_SECS) endByBell();
       }
       liveTimer += dt;
       if (liveTimer > 1.2) { liveTimer = 0; refreshLive(); }
-      break;
-    }
-    case 'BREAK': {
-      S.breakLeft -= dt;
-      hud.setClock(0, S.round);
-      liveTimer += dt;
-      if (liveTimer > 1.2) { liveTimer = 0; refreshLive(); }
-      if (S.breakLeft <= 0) startRound(S.round + 1);
       break;
     }
   }

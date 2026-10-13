@@ -173,9 +173,10 @@ export class Fighter {
   }
 
   // Guard or evade a blocked strike.
-  guard() {
+  // type: 'block' (guard up, the blow is stopped) or 'dodge' (it whiffs)
+  guard(type = rand() < 0.3 ? 'dodge' : 'block') {
     const K = this.kit;
-    const id = rand() < 0.3 && K.dodge.length ? pick(K.dodge) : pick(K.block);
+    const id = type === 'dodge' && K.dodge.length ? pick(K.dodge) : pick(K.block);
     this.act(id, { state: 'block', start: 0.04, fade: 0.08, len: Math.min(0.75, clipMeta(id).dur * 0.8) });
   }
 
